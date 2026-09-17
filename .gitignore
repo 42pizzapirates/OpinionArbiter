@@ -1,0 +1,31 @@
+# ==================== 密钥与本地配置 ====================
+.env
+.env.local
+.env.*.local
+
+# ==================== Python ====================
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ==================== 运行时产物 ====================
+data/
+logs/
+*.log
+
+# ==================== 前端 ====================
+front/node_modules/
+front/dist/
+front/.vite/
+npm-debug.log*
+
+# ==================== IDE / 系统 ====================
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
