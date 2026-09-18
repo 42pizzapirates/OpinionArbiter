@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     # ================== Insight 向量检索、聚类==================
     INSIGHT_VECTOR_ENABLED: bool = Field(False, description="是否为 InsightAgent 启用 Milvus 向量检索")
     MILVUS_URI: str = Field("http://localhost:19530", description="Milvus 服务器地址(URI)")
+    MILVUS_USER: str = Field("", description="Milvus 用户名(服务端开启鉴权时必填)")
+    MILVUS_PASSWORD: str = Field("", description="Milvus 密码(服务端开启鉴权时必填)")
     MILVUS_DB_NAME: str = Field("default", description="Milvus 数据库名称")
     MILVUS_INSIGHT_COLLECTION: str = Field("insight_evidence", description="Insight 证据集合(Collection)名称")
     INSIGHT_EMBEDDING_MODEL: str = Field("BAAI/bge-m3", description="Insight 检索所使用的 Embedding 模型名称/路径")
