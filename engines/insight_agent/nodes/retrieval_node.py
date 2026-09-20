@@ -1,8 +1,9 @@
 from typing import Any
+from engines.insight_agent.evidence_processor import EvidencePool
 from engines.insight_agent.state import InsightState
 from engines.common.nodes.base_node import BaseNode, ResearchNodeContext
 from engines.insight_agent.tools.retrival_service import InsightRetrivalService
-from engines.insight_agent.evidence.models import EvidenceRecord,EvidencePool
+from engines.contracts.evidence.models import EvidenceRecord
 
 
 class RetrievalNode(BaseNode):

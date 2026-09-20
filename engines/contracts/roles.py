@@ -1,5 +1,6 @@
 from typing import Literal
 from dataclasses import dataclass
+from engines.insight_agent.prompts import FORMAT_SYSTEM_PROMPT_TEMPLATE
 
 ROLE_KEY: Literal["insight", "media", "report", "host"]
 
@@ -8,13 +9,15 @@ ROLE_KEY: Literal["insight", "media", "report", "host"]
 class RoleInfo:
     config_prefix: str
     display_name: str
+    format_system_prompt: str = ""
 
 
 ROLE_INFOS: dict[str, RoleInfo] = {
 
     "insight": RoleInfo(
         config_prefix="INSIGHT_ENGINE",
-        display_name="私域检索智能体专家"
+        display_name="私域检索智能体专家",
+        format_system_prompt=FORMAT_SYSTEM_PROMPT_TEMPLATE
     ),
     "media": RoleInfo(
         config_prefix="MEDIA_ENGINE",

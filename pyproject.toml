@@ -32,6 +32,7 @@ dependencies = [
     "sse-starlette>=3.4.4",
     "jieba>=0.42.1",
     "pymilvus[model]>=2.6.0",
+    "modelscope>=1.40.1",
 ]
 
 [project.optional-dependencies]

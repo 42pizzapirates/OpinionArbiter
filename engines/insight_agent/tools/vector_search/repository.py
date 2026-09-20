@@ -151,7 +151,7 @@ class VectorSearchRepository:
 
 if __name__ == '__main__':
     repo = VectorSearchRepository()
-    test_query = "高考难吗?"
+    test_query = "iPhone 18 怎么样?"
     results = repo.search(query=test_query, limit=5)
     print(f"\n===== 检索结果 (共命中 {len(results)} 条) =====")
     for idx, hit in enumerate(results, 1):

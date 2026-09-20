@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Any
 from engines.insight_agent.state import InsightState
 from engines.common.nodes.base_node import BaseNode, ResearchNodeContext
-from engines.insight_agent.evidence.models import EvidenceRecord, RetrievalMeta
+from engines.contracts.evidence.models import EvidenceRecord, RetrievalMeta
 
 _CHANNEL_WEIGHTS = {
     "semantic_recall": 0.5,

@@ -1,251 +1,290 @@
-"""InsightAgent 证据聚类节点: 语义聚类优先，不支持则规则聚类。"""
+"""InsightAgent 聚类节点：实现语义优先、规则兜底的舆情数据簇化处理。"""
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from functools import lru_cache
 from typing import Any
 
-from engines.common.nodes.base_node import BaseNode
+import numpy as np
+from loguru import logger
+from engines.common.nodes.base_node import BaseNode, ResearchNodeContext
 from engines.contracts.config import get_settings
-from engines.insight_agent.evidence.models import EvidenceCluster, EvidenceRecord
+from engines.contracts.dimensions import dimension_for_key, get_insight_cluster_rules
+from engines.contracts.evidence.models import EvidenceRecord
+from engines.insight_agent.evidence_processor import EvidenceCluster
 from engines.insight_agent.state import InsightState
-
-TopicRule = tuple[str, str, tuple[str, ...]]
-
-TOPIC_RULES: list[TopicRule] = [
-    (
-        "background_overview",
-        "事件背景与概览",
-        ("通报", "回应", "发布", "声明", "官方", "现场", "视频", "消息", "事件", "起因")
-    ),
-    (
-        "heat_and_spread",
-        "舆情热度与传播",
-        ("热搜", "传播", "转发", "评论", "点赞", "爆料", "关注", "刷屏", "扩散", "趋势")
-    ),
-    (
-        "sentiment_and_opinion",
-        "公众情感与观点",
-        ("支持", "反对", "质疑", "吐槽", "愤怒", "担心", "理解", "争议", "态度", "看法")
-    ),
-    (
-        "platform_and_group_diff",
-        "平台与群体差异",
-        ("微博", "抖音", "小红书", "快手", "网友", "专家", "媒体", "大V", "粉丝", "网民", "自媒体")
-    ),
-    (
-        "deep_causes_and_impact",
-        "深层原因与影响",
-        ("原因", "影响", "风险", "后续", "舆论", "危机", "信任", "社会", "背后", "监管", "处罚", "问责")
-    ),
-]
-
-TOPIC_LABELS_BY_ID: dict[str, str] = {
-    **{f"cluster_{rule_key}": label for rule_key, label, _ in TOPIC_RULES},
-    "cluster_other": "其他讨论",
-}
-
-
-class ClusterNode(BaseNode):
-    async def __call__(self, state: InsightState) -> dict[str, Any]:
-        evidence_pool = state["evidence_pool"]
-        evidence_pool.clusters = self._build_clusters(evidence_pool.records)
-        return {"evidence_pool": evidence_pool}
-
-    def _build_clusters(self, records: list[EvidenceRecord]) -> list[EvidenceCluster]:
-        if not self._is_semantic_clustering_enabled(records):
-            return _cluster_by_rules(records)
-        return _cluster_by_semantics(records)
-
-    @staticmethod
-    def _is_semantic_clustering_enabled(records: list[EvidenceRecord]) -> bool:
-        return (
-                get_settings().INSIGHT_CLUSTERING_ENABLED
-                and bool(get_settings().INSIGHT_CLUSTER_MODEL)
-                and len(records) >= get_settings().INSIGHT_CLUSTER_MIN_CLUSTER_SIZE
-        )
-
-
-def _cluster_by_rules(records: list[EvidenceRecord]) -> list[EvidenceCluster]:
-    """
-    规则聚类
-    :param records:
-    :return:
-    """
-    records_by_cluster: dict[str, list[EvidenceRecord]] = defaultdict(list)
-
-    for record in records:
-        cluster_id = _match_rule_cluster_id(record)
-        record.cluster_id = cluster_id
-        records_by_cluster[cluster_id].append(record)
-
-    return _assemble_clusters(records_by_cluster, infer_labels_from_content=False)
-
-
-def _match_rule_cluster_id(record: EvidenceRecord) -> str:
-    """匹配聚类ID"""
-    searchable_text = f"{record.source_keyword} {record.content}"
-    for rule_key, _label, keywords in TOPIC_RULES:
-        if any(keyword in searchable_text for keyword in keywords):
-            return f"cluster_{rule_key}"
-    return "cluster_other"
 
 
 @lru_cache(maxsize=1)
-def _load_embedding_model():
+def _get_embedding_model():
+    """获取语义向量模型 (全局单例)"""
     from sentence_transformers import SentenceTransformer
     return SentenceTransformer(str(get_settings().INSIGHT_CLUSTER_MODEL))
 
 
-def _cluster_by_semantics(records: list[EvidenceRecord]) -> list[EvidenceCluster]:
-    sampled_records = records[: get_settings().INSIGHT_CLUSTER_MAX_RECORDS]
-    texts_to_embed = [f"{r.source_keyword} {r.content}".strip() for r in sampled_records]
+@lru_cache(maxsize=1)
+def _get_dimension_vector():
+    """计算五大维度的标准向量(用于语义路由)"""
+    rules = get_insight_cluster_rules()
 
-    embeddings = _load_embedding_model().encode(texts_to_embed, normalize_embeddings=True, show_progress_bar=False)
-    cluster_assignments = _assign_kmeans_clusters(embeddings, len(sampled_records))
+    # 组合维度标题与关键词
+    dimension_texts = [
+        f"{dimension_for_key(dim_key).title}: {' '.join(keywords)}"
+        for dim_key, keywords in rules.items()
+    ]
 
-    records_by_cluster: dict[str, list[EvidenceRecord]] = defaultdict(list)
-    for record, cluster_idx in zip(sampled_records, cluster_assignments):
-        cluster_id = f"semantic_cluster_{cluster_idx}"
-        record.cluster_id = cluster_id
-        records_by_cluster[cluster_id].append(record)
-
-    return _assemble_clusters(records_by_cluster, infer_labels_from_content=True)
-
-
-def _assign_kmeans_clusters(embeddings: Any, record_count: int) -> list[int]:
-    """
-    聚类计算
-    :param embeddings:
-    :param record_count:
-    :return:
-    n_init="auto"：兼顾质量与速度
-    random_state=42： 同一批数据运行结果一致
-    """
-    from sklearn.cluster import KMeans
-    optimal_k = _determine_optimal_k(record_count)
-    return [int(label) for label in
-            KMeans(n_clusters=optimal_k, n_init="auto", random_state=42).fit_predict(embeddings)]
+    dimension_keys = list(rules.keys())
+    dimension_embeddings = _get_embedding_model().encode(
+        dimension_texts,
+        normalize_embeddings=True,
+        show_progress_bar=False
+    )
+    return dimension_keys, dimension_embeddings
 
 
-def _determine_optimal_k(record_count: int) -> int:
-    """
-    计算 K-Means 聚类算法中的最优聚类数量
-    :param record_count:
-    :return:
-    """
-    estimated_k = record_count // get_settings().INSIGHT_CLUSTER_MIN_CLUSTER_SIZE
-    return max(2, min(get_settings().INSIGHT_CLUSTER_MAX_CLUSTERS, estimated_k, record_count))
+class ClusterNode(BaseNode):
+    """负责将证据池中的记录归类为语义簇或维度簇。"""
 
+    def __init__(self, context: ResearchNodeContext) -> None:
+        super().__init__(context)
 
-def _assemble_clusters(
-        records_by_cluster: dict[str, list[EvidenceRecord]],
-        *,
-        infer_labels_from_content: bool,
-) -> list[EvidenceCluster]:
-    """
-        将分组后的底层证据记录，统一组装为标准化的 EvidenceCluster 簇实体
-        标签决断: 根据 `infer_labels_from_content` 决定是基于内容的词频投票动态推断标签，还是降级使用静态规则映射表。
-        """
-    clusters: list[EvidenceCluster] = []
+    async def __call__(self, state: InsightState) -> dict[str, Any]:
+        logger.info("开始进行证据记录的聚类...")
 
-    for cluster_id, cluster_records in records_by_cluster.items():
-        if infer_labels_from_content:
-            cluster_label = _infer_cluster_label(cluster_records)
-        else:
-            cluster_label = TOPIC_LABELS_BY_ID.get(cluster_id, "其他讨论")
+        pool = state["evidence_pool"]
+        pool.clusters = self._cluster_evidence(pool.records)
 
-        clusters.append(EvidenceCluster(
-            id=cluster_id,
-            label=cluster_label,
-            summary=f"{cluster_label}相关讨论，共 {len(cluster_records)} 条证据。",
-            member_record_ids=[r.id for r in cluster_records],
-            representative_ids=[r.id for r in cluster_records[:5]],
-            size=len(cluster_records),
-        ))
+        cluster_summary = ", ".join(f"{cluster.id}: {cluster.size}条" for cluster in pool.clusters)
+        logger.info(f"聚类完成，共生成 {len(pool.clusters)} 个簇，分布情况: {cluster_summary}")
 
-    return sorted(clusters, key=lambda c: c.size, reverse=True)
+        return {"evidence_pool": pool}
 
+    def _cluster_evidence(self, records: list[EvidenceRecord]) -> list[EvidenceCluster]:
+        """执行聚类分区：根据配置选择语义聚类或规则聚类"""
+        if self._is_semantic_enabled(records):
+            return self._cluster_by_semantics(records)
+        return self._cluster_by_rules(records)
 
-def _infer_cluster_label(cluster_records: list[EvidenceRecord]) -> str:
-    sampled_content = " ".join(r.content[:300] for r in cluster_records)
-    voted_label = _vote_for_best_label(sampled_content)
-    return voted_label if voted_label else "综合讨论簇"
+    def _is_semantic_enabled(self, records: list[EvidenceRecord]) -> bool:
+        settings = get_settings()
+        return (
+                settings.INSIGHT_CLUSTERING_ENABLED
+                and bool(settings.INSIGHT_CLUSTER_MODEL)
+                and len(records) >= settings.INSIGHT_CLUSTER_MIN_CLUSTER_SIZE
+        )
 
+    # 策略 1: 基于关键词匹配的规则聚类
+    def _cluster_by_rules(self, records: list[EvidenceRecord]) -> list[EvidenceCluster]:
+        cluster_data: dict[str, list[EvidenceRecord]] = defaultdict(list)
 
-def _vote_for_best_label(sampled_content: str) -> str:
-    """是给各个 Label 记票并选出得票最高者"""
-    label_hit_counts: Counter[str] = Counter()
-    for _rule_key, label, keywords in TOPIC_RULES:
-        for keyword in keywords:
-            if keyword in sampled_content:
-                label_hit_counts[label] += 1
-    return label_hit_counts.most_common(1)[0][0] if label_hit_counts else ""
+        for record in records:
+            cluster_id = self._match_rule_key(record)
+            record.cluster_id = cluster_id
+            cluster_data[cluster_id].append(record)
+
+        return self._assemble_clusters(cluster_data)
+
+    def _match_rule_key(self, record: EvidenceRecord) -> str:
+        text = f"{record.source_keyword} {record.content}"
+        for dim_key, keywords in get_insight_cluster_rules().items():
+            if any(k in text for k in keywords):
+                return f"cluster_{dim_key}"   # cluster_background_overview
+        return "cluster_other"
+
+    # 策略 2: 基于 K-Means 的语义聚类
+    def _cluster_by_semantics(self, records: list[EvidenceRecord]) -> list[EvidenceCluster]:
+        settings = get_settings()
+        sampled = records[:settings.INSIGHT_CLUSTER_MAX_RECORDS]
+        contents = [f"{r.source_keyword} {r.content}".strip() for r in sampled]
+
+        # 1. 向量化与 K-Means 计算
+        embeddings = _get_embedding_model().encode(contents, normalize_embeddings=True, show_progress_bar=False)
+        assignments = self._calculate_kmeans_labels(embeddings, len(sampled))
+
+        # 2. 临时分组
+        temp_groups: dict[int, list[EvidenceRecord]] = defaultdict(list)
+        for record, label in zip(sampled, assignments):
+            temp_groups[label].append(record)
+
+        # 3. 语义路由：将自由簇对齐到标准维度
+        cluster_data: dict[str, list[EvidenceRecord]] = defaultdict(list)
+        for cluster_records in temp_groups.values():
+            dim_key = self._route_to_dimension(cluster_records)
+            cluster_id = f"cluster_{dim_key}"
+            for record in cluster_records:
+                record.cluster_id = cluster_id
+                cluster_data[cluster_id].append(record)
+
+        return self._assemble_clusters(cluster_data)
+
+    def _calculate_kmeans_labels(self, embeddings: Any, count: int) -> list[int]:
+        from sklearn.cluster import KMeans
+        # k>=5(k固定是5 或者count//桶的最小数：INSIGHT_CLUSTER_MIN_CLUSTER_SIZE>5)
+        k = self._determine_optimal_k(count)
+        # doc1    doc2   doc3   doc4  doc5
+        # [向量值  向量值  向量值  向量值 向量值]
+        # [0,      1,    0,      2,   1]
+        return [int(l) for l in KMeans(n_clusters=5, n_init="auto", random_state=42).fit_predict(embeddings)]
+
+    def _determine_optimal_k(self, count: int) -> int:
+        settings = get_settings()
+        # 理论值：理论桶数多少
+        k = count // settings.INSIGHT_CLUSTER_MIN_CLUSTER_SIZE
+        return max(2, min(settings.INSIGHT_CLUSTER_MAX_CLUSTERS, k, count))
+
+    def _route_to_dimension(self, records: list[EvidenceRecord]) -> str:
+        """计算簇中心与预置维度向量的余弦相似度，执行语义投递"""
+        sample = " ".join(r.content[:30] for r in records[:10])
+        emb = _get_embedding_model().encode([sample], normalize_embeddings=True, show_progress_bar=False)
+
+        keys, dimension_embs = _get_dimension_vector()
+        # 1. 计算当前文本向量与五大维度向量的相似度
+        similarities = np.dot(emb, dimension_embs.T)[0]
+        # 2. 选择相似度最高的维度 key
+        return keys[int(np.argmax(similarities))]
+
+    # 实体组装
+    def _assemble_clusters(self, data: dict[str, list[EvidenceRecord]]) -> list[EvidenceCluster]:
+        """将分区数据转换为领域实体 EvidenceCluster"""
+        result: list[EvidenceCluster] = []
+        for cluster_id, cluster_records in data.items():
+            section_key = cluster_id.removeprefix("cluster_")
+            dimension = dimension_for_key(section_key)
+            label = dimension.title if dimension else "其他相关讨论"
+
+            result.append(EvidenceCluster(
+                id=cluster_id,
+                label=label,
+                summary=f"{label}相关讨论，共 {len(cluster_records)} 条证据。",
+                member_record_ids=[r.id for r in cluster_records],
+                representative_ids=[r.id for r in cluster_records[:5]],
+                size=len(cluster_records),
+            ))
+
+        return sorted(result, key=lambda c: c.size, reverse=True)
 
 
 if __name__ == "__main__":
     import asyncio
+    import traceback
+    from engines.contracts.evidence.models import EvidenceRecord, Engagement, RetrievalMeta
+    from engines.insight_agent.evidence_processor import EvidencePool
 
 
-    async def run_test():
-        print("=== 开始初始化 ClusterNode 测试 ===")
-        from engines.insight_agent.evidence import EvidencePool, EvidenceRecord, Engagement, RetrievalMeta
-
-        # 1. 构造多条带有鲜明规则特征的测试证据
+    async def main():
         test_records = [
             EvidenceRecord(
-                id="doc_1", platform="weibo", source_table="weibo_note",
-                content="官方刚刚发布声明，通报了本次高考的相关事件调查结果。",
-                source_keyword="高考", published_at="2026-07-08 10:00:00", hotness_score=100.0,
-                engagement=Engagement(0, 0, 0, 0, 0), retrieval=RetrievalMeta(["高考"], ["keyword_recall"], {})
+                id="rec_1", platform="douyin", source_table="douyin_aweme", source_keyword="高考",
+                content="6月7日全国卷高考数学考试正式开考，引发全网关注。", published_at="2026-06-07 12:00:00",
+                hotness_score=95.0, final_score=95.0, cluster_id="",
+                engagement=Engagement(likes=1000, comments=200),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
             ),
             EvidenceRecord(
-                id="doc_2", platform="douyin", source_table="douyin_aweme",
-                content="今年分数线冲上热搜，全网都在刷屏讨论，传播量极高！",
-                source_keyword="高考", published_at="2026-07-08 11:00:00", hotness_score=500.0,
-                engagement=Engagement(0, 0, 0, 0, 0), retrieval=RetrievalMeta(["高考"], ["hot_recall"], {})
+                id="rec_2", platform="douyin", source_table="douyin_aweme", source_keyword="数学考试",
+                content="2026年高考第一天结束，关于数学考试的背景讨论成为全网焦点。", published_at="2026-06-07 17:30:00",
+                hotness_score=88.5, final_score=88.5, cluster_id="",
+                engagement=Engagement(likes=5000, comments=1200),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
             ),
             EvidenceRecord(
-                id="doc_3", platform="weibo", source_table="weibo_note",
-                content="真的太担心自己的成绩了，如果考砸了感觉很崩溃，忍不住吐槽一下...",
-                source_keyword="高考", published_at="2026-07-08 12:00:00", hotness_score=50.0,
-                engagement=Engagement(0, 0, 0, 0, 0), retrieval=RetrievalMeta(["高考"], ["keyword_recall"], {})
+                id="rec_3", platform="douyin", source_table="douyin_aweme", source_keyword="热度",
+                content="抖音爆款视频播放量突破千万，单条点赞超200万，传播数据惊人。", published_at="2026-06-07 20:00:00",
+                hotness_score=99.9, final_score=99.9, cluster_id="",
+                engagement=Engagement(likes=2000000, comments=240000),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["hot_recall"])
             ),
             EvidenceRecord(
-                id="doc_4", platform="douyin", source_table="douyin_aweme",
-                content="针对部分考场违规情况，教育局已展开调查，将严厉问责相关责任人。",
-                source_keyword="高考", published_at="2026-07-08 13:00:00", hotness_score=200.0,
-                engagement=Engagement(0, 0, 0, 0, 0), retrieval=RetrievalMeta(["高考"], ["keyword_recall"], {})
+                id="rec_4", platform="douyin", source_table="douyin_aweme", source_keyword="爆量",
+                content="关于高考数学的应援视频获得极高传播热度分，转发量已经过十万。",
+                published_at="2026-06-07 10:15:00",
+                hotness_score=76.2, final_score=76.2, cluster_id="",
+                engagement=Engagement(likes=3500, comments=450),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["hot_recall"])
             ),
             EvidenceRecord(
-                id="doc_5", platform="weibo", source_table="weibo_note",
-                content="中午去吃了个牛肉火锅，毛肚很新鲜，很开心。",
-                source_keyword="日常", published_at="2026-07-08 14:00:00", hotness_score=10.0,
-                engagement=Engagement(0, 0, 0, 0, 0), retrieval=RetrievalMeta(["日常"], ["keyword_recall"], {})
+                id="rec_5", platform="weibo", source_table="weibo_note", source_keyword="心态",
+                content="题目真的太难了，写到手抖笔都握不住，考生的焦虑感拉满，都在疯狂吐槽。",
+                published_at="2026-06-07 18:00:00",
+                hotness_score=91.0, final_score=91.0, cluster_id="",
+                engagement=Engagement(likes=800, comments=350),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
             ),
+            EvidenceRecord(
+                id="rec_6", platform="weibo", source_table="weibo_note", source_keyword="吐槽",
+                content="出卷人是不是刚考完研啊，今年到底难么？简直让人心态炸了，网友纷纷自嘲。",
+                published_at="2026-06-07 19:22:00",
+                hotness_score=84.0, final_score=84.0, cluster_id="",
+                engagement=Engagement(likes=1200, comments=580),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["comment_recall"])
+            ),
+
+            EvidenceRecord(
+                id="rec_7", platform="weibo", source_table="weibo_note", source_keyword="跨平台",
+                content="跨平台数据显示，抖音以情感应援为主，小红书和微博则集中在事实性标签速报。",
+                published_at="2026-06-08 09:00:00",
+                hotness_score=62.0, final_score=62.0, cluster_id="",
+                engagement=Engagement(likes=150, comments=45),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
+            ),
+            EvidenceRecord(
+                id="rec_8", platform="weibo", source_table="weibo_note_comment", source_keyword="微博",
+                content="不同群体在知乎上的讨论深度明显不同，微博端相关舆情声量微弱且存在明显差异。",
+                published_at="2026-06-08 11:30:00",
+                hotness_score=55.0, final_score=55.0, cluster_id="",
+                engagement=Engagement(likes=90, comments=22),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["comment_recall"])
+            ),
+            EvidenceRecord(
+                id="rec_9", platform="weibo", source_table="weibo_note_comment", source_keyword="内卷",
+                content="高考难度争议的深层原因本质上是教育代际竞争和内卷压力的具象投射。",
+                published_at="2026-06-08 14:00:00",
+                hotness_score=89.0, final_score=89.0, cluster_id="",
+                engagement=Engagement(likes=4500, comments=890),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
+            ),
+            EvidenceRecord(
+                id="rec_10", platform="weibo", source_table="weibo_note_comment", source_keyword="阶层",
+                content="很多家长将高考选拔机制视为子女阶层跃迁的最后确定性通道，产生了深远的社会影响。",
+                published_at="2026-06-08 16:45:00",
+                hotness_score=93.4, final_score=93.4, cluster_id="",
+                engagement=Engagement(likes=6200, comments=1100),
+                retrieval=RetrievalMeta(matched_queries=["高考难不难"], retrieval_channels=["keyword_recall"])
+            )
         ]
 
-        # 2. 构造状态池
-        mock_pool = EvidencePool(query="高考", records=test_records, clusters=[])
-        state = {"query": "高考", "evidence_pool": mock_pool}
+        # 2. 构建全局状态
+        pool = EvidencePool(query="高考难不难", records=test_records, clusters=[])
+        state: InsightState = {
+            "query": "高考难不难",
+            "role": "insight",
+            "evidence_pool": pool
+        }
 
-        # 3. 实例化并执行节点
-        node = ClusterNode(None)
+        # 3. 模拟上下文
+        class DummyContext:
+            output_dir = "./output_test"
+            llm_client = None
 
-        result_state = await node(state)
+        node = ClusterNode(DummyContext())
 
-        # 4. 打印聚类结果
-        clusters = result_state["evidence_pool"].clusters
-        print(f"\n 聚类执行完毕，共生成 {len(clusters)} 个讨论簇:")
-        print("-" * 50)
+        # 4. 压测
+        try:
+            output = await node(state)
+            print("\n--- 测试执行成功，验证真实产出的聚类实体 ---")
+            processed_pool = output["evidence_pool"]
 
-        for i, cluster in enumerate(clusters, 1):
-            print(f"[{i}] 簇 ID: {cluster.id}")
-            print(f"     标签: {cluster.label}")
-            print(f"     规模: {cluster.size} 条证据")
-            print(f"     摘要: {cluster.summary}")
-            print(f"     代表 ID: {cluster.representative_ids}")
-            print("-" * 50)
+            for cluster in processed_pool.clusters:
+                print(f"[{cluster.label}] ID: {cluster.id} | 包含数据: {cluster.size}条")
+                print(f"摘要描述: {cluster.summary}")
+                print(f"核心代表记录(Top3): {cluster.representative_ids[:3]}")
+                print("-" * 50)
+
+        except Exception as e:
+            print(f"测试运行失败 原因{str(e)}")
+            traceback.print_exc()
 
 
-    # 启动异步测试
-    asyncio.run(run_test())
+    asyncio.run(main())
+
+
+

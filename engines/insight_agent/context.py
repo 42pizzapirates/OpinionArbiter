@@ -1,5 +1,5 @@
 from typing import Callable
-from engines.common.llm_client import LLMClient
+from engines.common.llm.llm_client import LLMClient
 from engines.common.nodes.base_node import ProgressUpdate
 
 

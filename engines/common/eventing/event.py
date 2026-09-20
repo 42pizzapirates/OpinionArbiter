@@ -2,9 +2,9 @@
 事件类型
 事件数据
 """
-
-from pydantic import  BaseModel
+from pydantic import BaseModel,Field
 from enum import Enum
+from typing import Any
 
 
 class EventType(str, Enum):
@@ -27,6 +27,16 @@ class RoleErrorEvent(BaseModel):
     role: str               # Agent角色
     error: str              # 错误原因
 
+
+class SectionReadyEvent(BaseModel):
+    agent_name: str
+    section_key: str
+    section_index: int
+    title: str = ""
+    query: str = ""
+    body: str = ""
+
+    section_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 

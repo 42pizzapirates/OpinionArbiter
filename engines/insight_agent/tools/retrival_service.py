@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 from loguru import logger
 
-from engines.insight_agent.evidence.models import EvidenceRecord, Engagement, RetrievalMeta
+from engines.contracts.evidence.models import EvidenceRecord, Engagement, RetrievalMeta
 from engines.insight_agent.tools.db_search.repository import DatabaseSearchRepository
 from engines.insight_agent.tools.vector_search.repository import VectorSearchRepository
 from engines.insight_agent.tools.vector_search.search_results import SearchHit
@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
     async def main_test():
         retriever = InsightRetrivalService()
-        test_query = "高考难吗"
+        test_query = "iphone 18 pro性能怎么样"
 
         logger.info(f"测试3 整体编排召回, Query: '{test_query}'")
         all_results = await retriever.retrival_evidence(test_query)

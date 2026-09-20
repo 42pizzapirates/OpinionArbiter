@@ -1547,6 +1547,40 @@ wheels = [
 ]
 
 [[package]]
+name = "modelscope"
+version = "1.40.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+    { name = "modelscope-hub" },
+    { name = "packaging" },
+    { name = "requests" },
+    { name = "setuptools" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e1/c5/5e5e04377c3522b589b940393673a12a571340fef7e646ffe80d61150e58/modelscope-1.40.1.tar.gz", hash = "sha256:7b46d74fc3905a0a34a60bdefe774677d709d9ee2ada8cf85401a50ea533f9ae", size = 4564297, upload-time = "2026-09-15T12:11:49.467Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/ea/78b33ab6fe73db1eeedc5df229450d7ff481ec9050f4bcc46e44ef1c00fb/modelscope-1.40.1-py3-none-any.whl", hash = "sha256:6f135fe80903e7bfcd6ccc707f4f6f85c8e445cf497b624bd07299582486e2c1", size = 6061167, upload-time = "2026-09-15T12:11:46.323Z" },
+]
+
+[[package]]
+name = "modelscope-hub"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "filelock" },
+    { name = "requests" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/d3/d4a21ba8c4365d7590e15ae95f16bd7378562e476bfc4f7fadd6a856f917/modelscope_hub-0.4.3.tar.gz", hash = "sha256:c40bd768d37342ef57e380d5b4656c74a50e86a39d2dadb6f3583e8ff1b7ce34", size = 239991, upload-time = "2026-09-15T12:09:25.245Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/31/2a12be4ba9cf11d8023d06ca85e935de2da7042e7553e438cf549bfd1e4f/modelscope_hub-0.4.3-py3-none-any.whl", hash = "sha256:798af1f8474318857ef25112b12e3707e7ae5b40cbfb568efce38af8fb1194a3", size = 204126, upload-time = "2026-09-15T12:09:24.023Z" },
+]
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3103,6 +3137,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "loguru" },
     { name = "mistune" },
+    { name = "modelscope" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -3142,6 +3177,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.0.4" },
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "mistune", specifier = ">=3.1" },
+    { name = "modelscope", specifier = ">=1.40.1" },
     { name = "openai", specifier = ">=1.109.1" },
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },

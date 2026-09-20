@@ -22,6 +22,17 @@ def _adapt_moonshot(params: dict[str, Any], is_structured: bool) -> dict[str, An
     return adapted
 
 
+def _adapt_deepseek(params: dict[str, Any], is_structured: bool) -> dict[str, Any]:
+    adapted = params.copy()
+    if is_structured:
+        # thinking 模式下仅支持 tool_choice="auto"，与 with_structured_output(function_calling)
+        # 强制指定函数名的方式冲突，因此结构化输出时显式关闭 thinking。
+        extra_body = dict(adapted.get("extra_body") or {})
+        extra_body["thinking"] = {"type": "disabled"}
+        adapted["extra_body"] = extra_body
+    return adapted
+
+
 def _prepend_time_context(user_prompt: str) -> str:
     current_time = datetime.now().strftime("%Y年%m月%d日%H时%M分")
     time_prefix = f"今天的实际时间是{current_time}"
@@ -37,7 +48,8 @@ def _format_messages(system_prompt: str, user_prompt: str) -> list[BaseMessage]:
 
 _PROVIDER_ADAPTERS: dict[str, Callable[[dict[str, Any], bool], dict[str, Any]]] = {
     "moonshot": _adapt_moonshot,
-    "kimi": _adapt_moonshot
+    "kimi": _adapt_moonshot,
+    "deepseek": _adapt_deepseek,
 }
 
 

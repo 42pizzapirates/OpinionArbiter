@@ -1,4 +1,4 @@
-from engines.common.llm_client import LLMClient
+from engines.common.llm.llm_client import LLMClient
 
 
 async def invoke_media_agent(query: str,
