@@ -123,7 +123,7 @@ class ClusterNode(BaseNode):
         # doc1    doc2   doc3   doc4  doc5
         # [向量值  向量值  向量值  向量值 向量值]
         # [0,      1,    0,      2,   1]
-        return [int(l) for l in KMeans(n_clusters=5, n_init="auto", random_state=42).fit_predict(embeddings)]
+        return [int(l) for l in KMeans(n_clusters=k, n_init="auto", random_state=42).fit_predict(embeddings)]
 
     def _determine_optimal_k(self, count: int) -> int:
         settings = get_settings()
