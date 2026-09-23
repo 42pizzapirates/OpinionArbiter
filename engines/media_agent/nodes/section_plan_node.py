@@ -8,10 +8,11 @@ from loguru import logger
 
 from engines.common.nodes.base_node import BaseNode
 from engines.contracts.dimensions import DIMENSIONS, get_media_dimensions
-from engines.media_agent.web_search.schemas import SearchTool
+from engines.contracts.roles import role_display_name
 from engines.media_agent.prompts import PLAN_SYSTEM_PROMPT, PLAN_USER_PROMPT_TEMPLATE
 from engines.media_agent.schemas import MediaResearchPlan
 from engines.media_agent.state import MediaSection, MediaState
+from engines.media_agent.web_search.schemas import SearchTool
 
 SEARCH_TOOL_DESCRIPTIONS: dict[SearchTool, str] = {
     "comprehensive_search": "综合搜索,适合全面理解事件、原因、影响和多来源报道。",
@@ -21,37 +22,32 @@ SEARCH_TOOL_DESCRIPTIONS: dict[SearchTool, str] = {
 
 
 class PlanNode(BaseNode):
-    """负责将研究主题转换为媒体侧五维搜索计划，确保所有维度对齐并分配合适的搜索工具和提炼检索词。"""
+    """将研究主题转为媒体侧五维检索计划。"""
 
     async def __call__(self, state: MediaState) -> dict[str, Any]:
+        """执行五维章节规划的 LLM 调用与组装。"""
+
         query = state["query"]
-        logger.info(f"开始进行章节规划，当前研究主题: '{query}'...")
-
-        # 1. 构建LLM所需的用户提示词
+        agent_name = role_display_name(state['role'])  # type: ignore
+        self.context.report_progress("planning", f"{agent_name} 开始规划公域五维搜索信息", 10)
+        logger.info(f"【{agent_name}】 开始进行章节规划，当前研究主题: '{query}'")
         user_prompt = self._build_plan_prompt(query)
-
-        # 2. 调用LLM生成报告章节结构化大纲
         plan: MediaResearchPlan = await self.context.llm_client.generate_object(
             PLAN_SYSTEM_PROMPT, user_prompt, MediaResearchPlan
         )
-
-        # 3. 将LLM生成的报告章节大纲映射为五章节对象列表
         sections = self._generate_media_section(plan)
-
-        # 4. 返回五章节对应列表
         section_keys = ", ".join(s.get("section_key", "") for s in sections)
-        logger.info(f"章节规划完成，共规划 {len(sections)} 个章节信息，包含: {section_keys}")
+        logger.info(f"{agent_name} 章节规划完成，共规划 {len(sections)} 个章节信息，包含: {section_keys}")
+        self.context.report_progress("planning", f"{agent_name} 规划公域五维搜索信息完成", 20)
         return {"sections": sections}
 
     def _build_plan_prompt(self, query: str) -> str:
-        # 1. 获取提示词模板所需的数据变量
+        """拼装固定维度与可用工具的规划提示词。"""
         fixed_dimensions = get_media_dimensions()
         available_tools = [
             {"name": tool, "description": description}
             for tool, description in SEARCH_TOOL_DESCRIPTIONS.items()
         ]
-
-        # 2. 填充提示词模板并返回
         return PromptTemplate.from_template(PLAN_USER_PROMPT_TEMPLATE).format(
             research_topic=query,
             fixed_dimensions=json.dumps(fixed_dimensions, ensure_ascii=False, indent=2),
@@ -59,39 +55,34 @@ class PlanNode(BaseNode):
         )
 
     def _generate_media_section(self, plan: MediaResearchPlan) -> list[MediaSection]:
+        """对齐五维框架并补齐缺失章节的检索词。"""
         media_sections: list[MediaSection] = []
-
-        # 1. 以固定的五维度作为基准遍历
         for dimension in DIMENSIONS.values():
-
-            # 2. 按需查找匹配的LLM章节结果
             llm_section = next(
-                (section for section in plan.sections if
-                 section.section_key and section.section_key.strip() == dimension.key),
-                None
+                (
+                    section
+                    for section in plan.sections
+                    if section.section_key and section.section_key.strip() == dimension.key
+                ),
+                None,
             )
-
-            # 3. 确定最终的章节信息
             if llm_section:
-                # 3.1 如果找到了，使用llm生成的标题、目标、搜索工具和专属搜索词列表
                 goals = [g.strip() for g in llm_section.goal_analysis_points if g.strip()]
                 title = llm_section.title.strip()
                 search_tool = llm_section.search_tool
                 search_keywords = [k.strip() for k in llm_section.search_keywords if k.strip()]
             else:
-                # 3.2 如果没找到，llm把维度漏掉，用默认值
                 goals = [dimension.media_goal]
                 title = dimension.title
                 search_tool = "comprehensive_search"
                 search_keywords = [dimension.title]
-
-            # 4. 构建MediaSection
-            media_sections.append(MediaSection(
-                title=title,
-                goal=goals,
-                search_tool=search_tool,
-                search_keywords=search_keywords,
-                section_key=dimension.key,
-            ))
-
+            media_sections.append(
+                MediaSection(
+                    title=title,
+                    goal=goals,
+                    search_tool=search_tool,  # type: ignore
+                    search_keywords=search_keywords,
+                    section_key=dimension.key,
+                )
+            )
         return media_sections

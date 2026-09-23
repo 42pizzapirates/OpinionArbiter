@@ -5,6 +5,8 @@ from typing import Any
 
 @dataclass
 class VectorDocument:
+    """待入 Milvus 的跨平台文档与互动指标。"""
+
     doc_id: str
     platform: str
     source_table: str
@@ -22,10 +24,11 @@ class VectorDocument:
     hotness_score: float = 0.0
 
     def to_milvus_record(
-            self,
-            dense_vector: list[float],
-            sparse_vector: dict[int, float],
+        self,
+        dense_vector: list[float],
+        sparse_vector: dict[int, float],
     ) -> dict[str, Any]:
+        """组装含混合向量的 Milvus 写入字典。"""
         return {
             "platform": self.platform,
             "source_table": self.source_table,
@@ -48,6 +51,7 @@ class VectorDocument:
 @dataclass(frozen=True)
 class SearchHit:
     """向量检索命中结果。"""
+
     retrieval_score: float
     retrieval_channel: str
     retrieval_doc: VectorDocument

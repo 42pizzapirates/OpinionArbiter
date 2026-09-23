@@ -1,18 +1,17 @@
-"""MediaAgent 全网媒体研究模块：engines/media_agent/context.py。"""
-
-from typing import Callable, get_args
-from loguru import logger
 import hashlib
+from typing import Callable, get_args
+
+from loguru import logger
+
 from engines.common.llm.llm_client import LLMClient
 from engines.common.nodes.base_node import ProgressUpdate
 from engines.contracts.evidence.models import EvidenceRecord
-from engines.media_agent.web_search.schemas import SearchTool
 from engines.media_agent.web_search.factory import WebSearchClient
-from engines.media_agent.web_search.schemas import SearchProviderResponse
+from engines.media_agent.web_search.schemas import SearchProviderResponse, SearchTool
 
 
 class MediaContext:
-    """media 研究角色实例的依赖容器(Web 搜索)。"""
+    """公开媒体研究员的依赖容器与 Web 检索入口。"""
 
     def __init__(
             self,
@@ -21,24 +20,25 @@ class MediaContext:
             output_dir: str,
             progress_callback: Callable[[ProgressUpdate], None] | None = None,
     ) -> None:
+        """注入角色与 LLM 并创建 Web 搜索客户端。"""
         self.role = role
         self.llm_client = llm_client
         self.output_dir = output_dir
         self.progress_callback = progress_callback
         self._web_search_client = WebSearchClient()
 
+    def report_progress(self, status: str, message: str, pct: int) -> None:
+        """向外推送研究进度状态、消息与百分比。"""
+        self.progress_callback(ProgressUpdate(status, message, pct))
+
     async def execute_search(self, tool_name: SearchTool, query: str) -> list[EvidenceRecord]:
-
-        # 1. 获取校验后的工具
-        validated_tool: SearchTool = tool_name if tool_name in get_args(SearchTool) else "comprehensive_search"
-
+        """执行 Web 检索并将结果映射为证据记录列表。"""
+        validated_tool: SearchTool = (
+            tool_name if tool_name in get_args(SearchTool) else "comprehensive_search"
+        )
         try:
-            # 2. 获取搜索结果
             web_response = await self._search_webpage(validated_tool, query)
-
-            # 3. 转换结果并返回
             return self._map_to_evidence_records(web_response, query)
-
         except Exception as exc:
             logger.error(f"{self.role} 搜索失败 tool={validated_tool} query={query} 异常={exc}")
             return []
@@ -48,18 +48,14 @@ class MediaContext:
             tool_name: SearchTool,
             query: str,
     ) -> SearchProviderResponse:
-
+        """按工具类型分派综合、溯源或实时检索。"""
         match tool_name:
-            # 溯源检索
             case "source_search":
-                response = await  self._web_search_client.source_search(query)
-            # 实时检索
+                response = await self._web_search_client.source_search(query)
             case "realtime_search":
-                response = await  self._web_search_client.realtime_search(query)
-            # 综合检索
+                response = await self._web_search_client.realtime_search(query)
             case _:
-                response = await  self._web_search_client.comprehensive_search(query)
-
+                response = await self._web_search_client.comprehensive_search(query)
         return response
 
     def _map_to_evidence_records(
@@ -67,8 +63,7 @@ class MediaContext:
             response: SearchProviderResponse,
             query: str,
     ) -> list[EvidenceRecord]:
-        """转换Web搜索结果对象为证据下游需要记录对象"""
-
+        """将网页结果映射为带哈希 ID 的证据记录。"""
         if response is None:
             return []
         return [
@@ -86,5 +81,6 @@ class MediaContext:
 
 
 def _generate_content_hash_id(content: str, url: str) -> str:
+    """对内容与 URL 做 MD5 生成证据唯一标识。"""
     raw_key = content + url
-    return hashlib.md5(raw_key.encode("utf-8")).hexdigest()
+    return hashlib.md5(raw_key.encode("utf-8")).hexdigest()  # type: ignore

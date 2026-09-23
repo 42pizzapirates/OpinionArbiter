@@ -1,60 +1,51 @@
-from typing import Any, Mapping
 from dataclasses import dataclass
+from typing import Any, Mapping
 
 
 @dataclass
 class ContentTableMapping:
-    """
-    "内容表" 映射
-    """
-    # 表名
+    """内容表的字段与互动列映射配置。"""
+
     table_name: str
-    # 内容
+
     text_col: str
-    # 发布时间
+
     published_at_col: str
-    # 搜索关键词
+
     source_keyword_col: str
-    # 互动
+
     engagement_cols: Mapping[str, str]
 
-    # 搜索字段
     search_fields: tuple[str, ...]
 
 
 @dataclass
 class CommentTableMapping:
-    """
-    "评论表" 映射
-    """
-    # 表名
-    table_name: str
-    # 内容
-    text_col: str
-    # 发布时间
-    published_at_col: str
-    # 互动
-    engagement_cols: Mapping[str, str]   # 只读
+    """评论表的字段与互动列映射配置。"""
 
-    # 搜索字段
+    table_name: str
+
+    text_col: str
+
+    published_at_col: str
+
+    engagement_cols: Mapping[str, str]
+
     search_fields: tuple[str, ...]
 
 
 @dataclass
 class PlatformSearchMapping:
-    """
-    平台搜索表映射
-    """
-    # 平台名字
+    """平台内容表与评论表的统一映射配置。"""
+
     platform_name: str
-    # 内容表
+
     content_mapping: ContentTableMapping
-    # 评论表
+
     comment_mapping: CommentTableMapping
 
 
 PLATFORM_MAPPING: dict[str, Any] = {
-
     "douyin": PlatformSearchMapping(
         platform_name="douyin",
         content_mapping=ContentTableMapping(
@@ -78,8 +69,8 @@ PLATFORM_MAPPING: dict[str, Any] = {
                 "likes": "like_count",
                 "replies": "sub_comment_count",
             },
-            search_fields=("content",)
-        )
+            search_fields=("content",),
+        ),
     ),
     "weibo": PlatformSearchMapping(
         platform_name="weibo",
@@ -93,7 +84,7 @@ PLATFORM_MAPPING: dict[str, Any] = {
                 "comments": "comments_count",
                 "shares": "shared_count",
             },
-            search_fields=("content", "source_keyword")
+            search_fields=("content", "source_keyword"),
         ),
         comment_mapping=CommentTableMapping(
             table_name="weibo_note_comment",
@@ -103,8 +94,7 @@ PLATFORM_MAPPING: dict[str, Any] = {
                 "likes": "comment_like_count",
                 "replies": "sub_comment_count",
             },
-            search_fields=("content",)
-        )
-    )
-
+            search_fields=("content",),
+        ),
+    ),
 }

@@ -1,22 +1,24 @@
-import asyncio
-import traceback
 from typing import Callable
+
 from loguru import logger
-import time
-from engines.common.nodes.base_node import ProgressUpdate
+
 from engines.common.llm.llm_client import LLMClient
+from engines.common.nodes.base_node import ProgressUpdate
+from engines.contracts.roles import role_display_name
 from engines.insight_agent.context import InsightContext
 from engines.insight_agent.graph import build_graph
 
 
-async def invoke_insight_agent(query: str,
-                               role: str,
-                               llm_client: LLMClient,
-                               out_put_dir: str,
-                               progress_callback: Callable[[ProgressUpdate], None] | None,
-                               ):
-    logger.info(f"Insight智能体开始研究: {query}")
-
+async def invoke_insight_agent(
+        query: str,
+        role: str,
+        llm_client: LLMClient,
+        out_put_dir: str,
+        progress_callback: Callable[[ProgressUpdate], None] | None,
+):
+    """构建私域舆情智能体上下文与图，执行研究流程。"""
+    agent_name = role_display_name(role)  # type: ignore
+    logger.info(f"【{agent_name}】 开始研究: {query}")
     context = InsightContext(
         role=role,
         llm_client=llm_client,
@@ -24,38 +26,6 @@ async def invoke_insight_agent(query: str,
         progress_callback=progress_callback,
     )
     graph = build_graph(context)
-    print(graph.get_graph().draw_mermaid())  # 打印图结构
-    # print(graph.get_graph().draw_ascii())  # 打印图结构
-
     initial_state = {"query": query, "role": role}
-
     await graph.ainvoke(initial_state)
-
-    logger.info(f"Insight智能体研究完成")
-
-
-if __name__ == "__main__":
-    async def run_min_test():
-        query = "iphone 18 pro 性能"
-        role = "insight"
-        output_dir = "data/report/insight"
-        logger.info("开始测试私域智能体全链路执行...")
-
-        client = LLMClient.from_role(role)
-        try:
-            start = time.time()
-            await invoke_insight_agent(
-                query=query,
-                role=role,
-                llm_client=client,
-                out_put_dir=output_dir,
-                progress_callback=None
-            )
-            elapsed = time.time() - start
-            logger.info(f"测试私域智能体全链路成功, 耗时:{elapsed:.3f} 秒")
-        except Exception as e:
-            logger.error(f"测试私域智能体全链路失败 原因 {str(e)}")
-            traceback.print_exc()
-
-
-    asyncio.run(run_min_test())
+    logger.info(f"【{agent_name}】 研究完成")

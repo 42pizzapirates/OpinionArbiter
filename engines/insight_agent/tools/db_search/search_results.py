@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
 
 @dataclass
 class SearchRecord:
+    """单条数据库召回的标准化检索记录。"""
+
     mysql_pk: str
     platform: str
     source_table: str
@@ -18,6 +20,8 @@ class SearchRecord:
 
 @dataclass
 class SearchResponse:
+    """单通道召回结果集合与统计信息。"""
+
     retrieval_channel: str
     search_results: list[SearchRecord] = field(default_factory=list)
     search_results_count: int = 0

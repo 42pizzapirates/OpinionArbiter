@@ -1,19 +1,23 @@
 import asyncio
-from pydantic.dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable
+
 from loguru import logger
+from pydantic.dataclasses import dataclass
 
 
 @dataclass
 class RetryConfig:
+    """LLM 调用重试退避配置"""
+
     max_retries: int = 3
     initial_delay: float = 1.0
     backoff_factor: float = 2.0
     max_delay: float = 60.0
 
     def delay_for(self, attempt: int) -> float:
-        return min(self.initial_delay * (self.backoff_factor ** attempt), self.max_delay)
+        """按指数退避计算第 N 次重试延迟"""
+        return min(self.initial_delay * (self.backoff_factor**attempt), self.max_delay)
 
 
 RETRY_CONFIG = RetryConfig(
@@ -25,7 +29,7 @@ RETRY_CONFIG = RetryConfig(
 
 
 def _is_non_retryable(exc: Exception) -> bool:
-    """4xx 客户端错误(限流 429 除外)重试无意义,立即失败。"""
+    """判断是否不可重试(4xx 非限流)"""
     status = getattr(exc, "status_code", None)
     if status is None:
         response = getattr(exc, "response", None)
@@ -34,10 +38,9 @@ def _is_non_retryable(exc: Exception) -> bool:
 
 
 def _evaluate_failure(name: str, attempt: int, exc: Exception, config: RetryConfig) -> float | None:
-    """返回重试延迟秒数;None 表示放弃。"""
+    """评估失败：返回退避延迟或放弃"""
     exhausted = attempt >= config.max_retries
     non_retryable = _is_non_retryable(exc)
-
     if non_retryable or exhausted:
         return None
     delay = config.delay_for(attempt)
@@ -47,12 +50,13 @@ def _evaluate_failure(name: str, attempt: int, exc: Exception, config: RetryConf
 
 
 def with_retry(func: Callable) -> Callable:
-    """刚性重试：重试失败或遇到致命错误时向上抛异常。"""
+    """刚性重试：失败耗尽或致命错误则抛异常"""
     if not asyncio.iscoroutinefunction(func):
         raise TypeError(f"重试装饰器只能装饰 async 函数,得到的是同步函数 {func.__name__}")
 
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
+        """带退避重试执行被装饰协程"""
         cfg = RETRY_CONFIG
         for attempt in range(cfg.max_retries + 1):
             try:
@@ -67,12 +71,13 @@ def with_retry(func: Callable) -> Callable:
 
 
 def with_graceful_retry(func: Callable) -> Callable:
-    """柔性重试：失败时不抛异常,返回实例的 retry_default_return 属性(无则 None)。"""
+    """柔性重试：失败返回默认值不抛异常"""
     if not asyncio.iscoroutinefunction(func):
         raise TypeError(f"重试装饰器只能装饰 async 函数,得到的是同步函数 {func.__name__}")
 
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
+        """带退避重试，失败返回默认值"""
         cfg = RETRY_CONFIG
         default_return = getattr(args[0], "retry_default_return", None) if args else None
         for attempt in range(cfg.max_retries + 1):
@@ -86,6 +91,3 @@ def with_graceful_retry(func: Callable) -> Callable:
         return default_return
 
     return wrapper
-
-
-

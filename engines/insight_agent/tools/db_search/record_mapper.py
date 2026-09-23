@@ -1,27 +1,23 @@
 from typing import Any
-from engines.insight_agent.tools.utils import to_datetime, to_unique_id, extract_engagement
 
 from engines.insight_agent.tools.db_search.search_results import SearchRecord
 from engines.insight_agent.tools.platform_mappings import PLATFORM_MAPPING
+from engines.insight_agent.tools.utils import (
+    extract_engagement,
+    to_datetime,
+    to_unique_id,
+)
 
 
 def db_row_to_search_record(result_row: dict[str, Any]) -> SearchRecord:
-    """将 db_search 查询行映射为统一的 SearchRecord。"""
-
-    # 1. 获取平台名
+    """按平台映射将数据库行转为检索记录。"""
     platform_name = result_row.get("platform")
-
-    # 2. 获取平台映射
     platform_mapping = PLATFORM_MAPPING.get(platform_name)
-
-    # 3. 获取表名
     table_name = platform_mapping.comment_mapping.table_name
     is_comment = result_row.get("source_table") == table_name
-
-    # 4. 获取平台表映射
-    platform_mapping = platform_mapping.comment_mapping if is_comment else platform_mapping.content_mapping
-
-    # 5. 返回搜索记录
+    platform_mapping = (
+        platform_mapping.comment_mapping if is_comment else platform_mapping.content_mapping
+    )
     return SearchRecord(
         platform=result_row.get("platform"),
         source_table=result_row.get("source_table"),

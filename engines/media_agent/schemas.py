@@ -1,10 +1,11 @@
-"""MediaAgent LLM 结构化输出模型。"""
-
 from pydantic import BaseModel, Field
+
 from engines.media_agent.web_search.schemas import SearchTool
 
 
 class MediaSectionPlan(BaseModel):
+    """单个章节的检索计划结构化输出模型。"""
+
     title: str = Field(..., description="当前固定维度下的章节标题")
     section_key: str = Field(..., description="必须严格原样返回固定维度框架中的 section_key")
     goal_analysis_points: list[str] = Field(
@@ -18,10 +19,13 @@ class MediaSectionPlan(BaseModel):
     search_keywords: list[str] = Field(
         min_length=1,
         max_length=3,
-        description="专为搜索引擎提取的补充关键词，1-3个。必须是离散的词汇（如 '官方通报', '警方回应'），绝不能是完整句子。"
+        description="专为搜索引擎提取的补充关键词，1-3个。必须是离散的词汇（如 '官方通报', '警方回应'），绝不能是完整句子。",
     )
 
+
 class MediaResearchPlan(BaseModel):
+    """五维章节检索计划的结构化输出模型。"""
+
     sections: list[MediaSectionPlan] = Field(
         min_length=5,
         max_length=5,

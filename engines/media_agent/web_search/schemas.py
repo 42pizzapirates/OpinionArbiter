@@ -1,5 +1,3 @@
-"""MediaAgent Web 搜索的强类型领域模型。"""
-
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -9,7 +7,8 @@ SearchProvider = Literal["anspire", "bocha", "tavily"]
 
 @dataclass(frozen=True, slots=True)
 class WebpageResult:
-    """网页搜索结果"""
+    """单条网页检索结果的领域模型。"""
+
     title: str
     url: str
     content: str
@@ -18,13 +17,8 @@ class WebpageResult:
 
 @dataclass(frozen=True, slots=True)
 class SearchProviderResponse:
-    """统一搜索提供上响应数据"""
+    """Provider 检索结果的统一响应模型。"""
+
     query: str
     provider: SearchProvider
     webpages: list[WebpageResult] = field(default_factory=list)
-
-
-
-
-
-

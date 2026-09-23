@@ -1,9 +1,11 @@
-import asyncio
 from typing import Callable
+
 from loguru import logger
-from engines.media_agent.context import MediaContext
-from engines.common.nodes.base_node import ProgressUpdate
+
 from engines.common.llm.llm_client import LLMClient
+from engines.common.nodes.base_node import ProgressUpdate
+from engines.contracts.roles import role_display_name
+from engines.media_agent.context import MediaContext
 from engines.media_agent.graph import build_graph
 
 
@@ -14,49 +16,13 @@ async def invoke_media_agent(
         output_dir: str,
         progress_callback: Callable[[ProgressUpdate], None] | None = None,
 ) -> None:
-    logger.info(f"Media智能体开始研究: {query}")
-
+    """构建媒体研究上下文并执行 LangGraph 研究图。"""
+    agent_name = role_display_name(role)  # type: ignore
+    logger.info(f"【{agent_name}】开始研究: {query}")
     context = MediaContext(
-        role=role,
-        llm_client=llm_client,
-        output_dir=output_dir,
-        progress_callback=progress_callback
+        role=role, llm_client=llm_client, output_dir=output_dir, progress_callback=progress_callback
     )
-
     graph = build_graph(context)
-    print(graph.get_graph().draw_mermaid())  # 打印图结构
-
     initial_state = {"query": query, "role": role}
-
     await graph.ainvoke(initial_state)
-
-    logger.info("Media智能体研究完成")
-
-
-if __name__ == "__main__":
-
-
-    async def run_min_test():
-        query = "高考难不难"
-        role = "media"
-        output_dir = "data/report/media"
-
-        # 初始化客户端
-        client = LLMClient.from_role(role)
-
-        try:
-            await invoke_media_agent(
-                query=query,
-                role=role,
-                llm_client=client,
-                output_dir=output_dir,
-                progress_callback=None
-            )
-            print("测试执行成功")
-        except Exception as e:
-            print(f"测试执行失败: {e}")
-            import traceback
-            traceback.print_exc()
-
-
-    asyncio.run(run_min_test())
+    logger.info(f"【{agent_name}】研究完成")
