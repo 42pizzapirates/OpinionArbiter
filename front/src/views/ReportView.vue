@@ -17,7 +17,7 @@ async function refreshStatus() {
 }
 
 async function startReport() {
-  if (!status.value?.inputs_ready) {
+  if (!status.value?.prepared) {
     error.value = '输入文件未准备就绪'
     return
   }
@@ -79,14 +79,14 @@ refreshStatus()
       <div class="status-grid">
         <div class="status-cell" v-if="status">
           <span class="status-key">输入就绪</span>
-          <span class="status-val" :class="{ ok: status.inputs_ready }">
-            <span class="status-dot" :class="{ ok: status.inputs_ready }"></span>
-            {{ status.inputs_ready ? '已就绪' : '未就绪' }}
+          <span class="status-val" :class="{ ok: status.prepared }">
+            <span class="status-dot" :class="{ ok: status.prepared }"></span>
+            {{ status.prepared ? '已就绪' : '未就绪' }}
           </span>
         </div>
-        <div class="status-cell" v-if="status?.files_found?.length">
+        <div class="status-cell" v-if="status?.found_files?.length">
           <span class="status-key">可用文件</span>
-          <span class="status-val">{{ status.files_found.length }} 个</span>
+          <span class="status-val">{{ status.found_files.length }} 个</span>
         </div>
         <div class="status-cell" v-if="generating">
           <span class="status-key">轮询次数</span>
@@ -112,7 +112,7 @@ refreshStatus()
             placeholder="输入报告主题，留空则自动聚合当前分析结果..."
             :disabled="generating"
           />
-          <button class="generate-btn" @click="startReport" :disabled="generating || !reportQuery.trim() || !status?.inputs_ready">
+          <button class="generate-btn" @click="startReport" :disabled="generating || !reportQuery.trim() || !status?.prepared">
             <svg v-if="!generating" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>

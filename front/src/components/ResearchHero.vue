@@ -6,6 +6,7 @@ defineProps({
   },
   researching: Boolean,
   loadingLatest: Boolean,
+  researchDisabled: Boolean,
 })
 
 defineEmits(['update:query', 'research', 'load-latest'])
@@ -36,7 +37,7 @@ defineEmits(['update:query', 'research', 'load-latest'])
           autofocus
           @input="$emit('update:query', $event.target.value)"
         />
-        <button class="research-btn" type="submit" :disabled="!query.trim() || researching">
+        <button class="research-btn" type="submit" :disabled="!query.trim() || researching || researchDisabled">
           <span v-if="!researching" class="btn-label">开始分析</span>
           <span v-else class="btn-label">
             <span class="btn-dot"></span>

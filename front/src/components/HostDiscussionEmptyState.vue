@@ -1,3 +1,9 @@
+<script setup>
+defineProps({
+  running: Boolean,
+})
+</script>
+
 <template>
   <div class="host-discussion-empty stagger-3">
     <div class="empty-icon">
@@ -5,8 +11,8 @@
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     </div>
-    <p class="empty-title">主持人尚未启动</p>
-    <p class="empty-desc">点击「启动主持人」开始 AI 多维研判</p>
+    <p class="empty-title">{{ running ? '主持人已启动，等待讨论内容' : '主持人尚未启动' }}</p>
+    <p class="empty-desc">{{ running ? '收到 Agent 发言后将自动展示在这里' : '点击「启动主持人」开始 AI 多维研判' }}</p>
   </div>
 </template>
 

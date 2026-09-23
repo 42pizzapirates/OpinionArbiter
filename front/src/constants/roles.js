@@ -11,9 +11,9 @@ export const ROLE_SUBTITLE = {
 export const RESEARCH_ROLE_ORDER = ['insight', 'media']
 
 export const SENDER_STYLE = {
-  'Insight Engine': { color: 'var(--amber)', icon: '◆', role: '数据挖掘' },
-  'Media Engine': { color: 'var(--blue-steel)', icon: '◇', role: '舆情分析' },
-  'Host Agent': { color: 'var(--paper)', icon: '◈', role: '主持人' },
+  insight: { color: 'var(--amber)', icon: '◆', label: '数据挖掘', role: '数据挖掘' },
+  media: { color: 'var(--blue-steel)', icon: '◇', label: '舆情分析', role: '舆情分析' },
+  host: { color: 'var(--paper)', icon: '◈', label: '主持人', role: '主持人' },
 }
 
 export const DEFAULT_RESEARCH_DIMENSIONS = [

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onUnmounted, nextTick } from 'vue'
-import { startHost, stopHost, getHostDiscussionLog, getResearchDimensions } from '../composables/api.js'
+import { startHost, stopHost, getHostDiscussionLog } from '../composables/api.js'
 import { DEFAULT_RESEARCH_DIMENSIONS } from '../constants/roles.js'
 import HostDiscussionControls from '../components/HostDiscussionControls.vue'
 import HostDiscussionDimensionList from '../components/HostDiscussionDimensionList.vue'
@@ -15,7 +15,7 @@ const error = ref('')
 let pollTimer = null
 
 const finalHostMessages = computed(() =>
-  messages.value.filter(msg => msg.speaker_name === 'Host Agent' && !msg.dimension_key)
+  messages.value.filter(msg => msg.source === 'host' && !msg.dimension_key)
 )
 
 const dimensionRows = computed(() =>
@@ -23,9 +23,9 @@ const dimensionRows = computed(() =>
     const scoped = messages.value.filter(msg => msg.dimension_key === dimension.key)
     return {
       ...dimension,
-      insight: latestBySpeaker(scoped, 'Insight Engine'),
-      media: latestBySpeaker(scoped, 'Media Engine'),
-      host: latestBySpeaker(scoped, 'Host Agent'),
+      insight: latestBySpeaker(scoped, 'insight'),
+      media: latestBySpeaker(scoped, 'media'),
+      host: latestBySpeaker(scoped, 'host'),
       count: scoped.length,
     }
   })
@@ -35,14 +35,14 @@ const hasStructuredMessages = computed(() =>
   finalHostMessages.value.length || dimensionRows.value.some(row => row.count)
 )
 
-function latestBySpeaker(items, speakerName) {
-  return [...items].reverse().find(msg => msg.speaker_name === speakerName) || null
+function latestBySpeaker(items, source) {
+  return [...items].reverse().find(msg => msg.source === source) || null
 }
 
 function normalizeDiscussionRecords(data) {
   const records = data?.discussion_records || data?.parsed_messages || []
   return records.map(record => ({
-    speaker_name: record.speaker_name || record.sender || '',
+    source: record.source || '',
     message_text: record.message_text || record.content || '',
     sent_at: record.sent_at || record.timestamp || '',
     dimension_key: record.dimension_key || record.section_key || '',
@@ -61,10 +61,10 @@ async function handleStart() {
 }
 
 async function handleStop() {
+  hostRunning.value = false
+  stopPolling()
   try {
     await stopHost()
-    hostRunning.value = false
-    stopPolling()
   } catch (e) {
     error.value = '停止主持人失败'
   }
@@ -74,20 +74,20 @@ async function refreshLog() {
   loading.value = true
   try {
     const data = await getHostDiscussionLog()
-    messages.value = normalizeDiscussionRecords(data)
-    await nextTick()
-    scrollToBottom()
-  } catch {}
-  loading.value = false
-}
-
-async function loadDimensions() {
-  try {
-    const data = await getResearchDimensions()
-    if (Array.isArray(data?.dimensions) && data.dimensions.length) {
-      researchDimensions.value = data.dimensions
+    const nextMessages = normalizeDiscussionRecords(data)
+    const shouldUpdate = hasDiscussionChanged(nextMessages)
+    const shouldFollow = isNearBottom()
+    if (shouldUpdate) {
+      messages.value = nextMessages
+      await nextTick()
+      if (shouldFollow) scrollToBottom()
+    }
+    if (isDiscussionComplete()) {
+      hostRunning.value = false
+      stopPolling()
     }
   } catch {}
+  loading.value = false
 }
 
 function startPolling() {
@@ -102,6 +102,23 @@ function stopPolling() {
   }
 }
 
+function isDiscussionComplete() {
+  return finalHostMessages.value.length > 0 && dimensionRows.value.every(row => row.host)
+}
+
+function hasDiscussionChanged(nextMessages) {
+  if (nextMessages.length !== messages.value.length) return true
+  const currentLast = messages.value[messages.value.length - 1]
+  const nextLast = nextMessages[nextMessages.length - 1]
+  return JSON.stringify(currentLast) !== JSON.stringify(nextLast)
+}
+
+function isNearBottom() {
+  const el = document.querySelector('.host-discussion-content')
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
 function scrollToBottom() {
   const el = document.querySelector('.host-discussion-content')
   if (el) el.scrollTop = el.scrollHeight
@@ -109,7 +126,6 @@ function scrollToBottom() {
 
 onUnmounted(stopPolling)
 
-loadDimensions()
 refreshLog()
 </script>
 
@@ -136,7 +152,7 @@ refreshLog()
       <HostDiscussionDimensionList v-if="hasStructuredMessages" :rows="dimensionRows" />
     </div>
 
-    <HostDiscussionEmptyState v-else />
+    <HostDiscussionEmptyState v-else :running="hostRunning" />
   </div>
 </template>
 

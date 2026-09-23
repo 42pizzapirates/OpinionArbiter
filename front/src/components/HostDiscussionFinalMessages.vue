@@ -12,21 +12,24 @@ defineProps({
 <template>
   <section v-if="messages.length" class="final-section">
     <div class="section-kicker">FINAL JUDGEMENT</div>
-    <article
+    <details
       v-for="(msg, i) in messages"
       :key="`final-${i}`"
       class="host-final"
+      open
     >
-      <div class="msg-meta">
-        <span class="msg-sender" :style="{ color: SENDER_STYLE[msg.speaker_name]?.color }">
-          <span class="msg-icon">{{ SENDER_STYLE[msg.speaker_name]?.icon }}</span>
-          {{ msg.speaker_name }}
-        </span>
-        <span class="msg-role">{{ SENDER_STYLE[msg.speaker_name]?.role }}</span>
-        <span class="msg-time">{{ msg.sent_at }}</span>
-      </div>
-      <div class="msg-content">{{ msg.message_text }}</div>
-    </article>
+      <summary>
+        <div class="msg-meta">
+          <span class="msg-sender" :style="{ color: SENDER_STYLE[msg.source]?.color }">
+            <span class="msg-icon">{{ SENDER_STYLE[msg.source]?.icon }}</span>
+            {{ SENDER_STYLE[msg.source]?.label }}
+          </span>
+          <span class="msg-role toggle-label"></span>
+          <span class="msg-time">{{ msg.sent_at }}</span>
+        </div>
+      </summary>
+      <div class="msg-content final-content">{{ msg.message_text }}</div>
+    </details>
   </section>
 </template>
 
@@ -50,6 +53,27 @@ defineProps({
   background: var(--ink-lighter);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+}
+
+.host-final summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.host-final summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle-label::after {
+  content: '收起';
+}
+
+.host-final:not([open]) .toggle-label::after {
+  content: '展开';
+}
+
+.final-content {
+  margin-top: 0.5rem;
 }
 
 .msg-meta {

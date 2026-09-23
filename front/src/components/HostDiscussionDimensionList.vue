@@ -29,17 +29,19 @@ defineProps({
         </div>
       </div>
 
-      <div v-if="row.host" class="host-judgement">
-        <div class="msg-meta">
-          <span class="msg-sender" :style="{ color: SENDER_STYLE[row.host.speaker_name]?.color }">
-            <span class="msg-icon">{{ SENDER_STYLE[row.host.speaker_name]?.icon }}</span>
-            {{ row.host.speaker_name }}
-          </span>
-          <span class="msg-role">{{ SENDER_STYLE[row.host.speaker_name]?.role }}</span>
-          <span class="msg-time">{{ row.host.sent_at }}</span>
-        </div>
-        <div class="msg-content">{{ row.host.message_text }}</div>
-      </div>
+      <details v-if="row.host" class="host-judgement" open>
+        <summary>
+          <div class="msg-meta">
+            <span class="msg-sender" :style="{ color: SENDER_STYLE[row.host.source]?.color }">
+              <span class="msg-icon">{{ SENDER_STYLE[row.host.source]?.icon }}</span>
+              {{ SENDER_STYLE[row.host.source]?.label }}
+            </span>
+            <span class="msg-role toggle-label"></span>
+            <span class="msg-time">{{ row.host.sent_at }}</span>
+          </div>
+        </summary>
+        <div class="msg-content host-content">{{ row.host.message_text }}</div>
+      </details>
 
       <div v-else class="host-placeholder">
         <span class="pending-dot"></span>
@@ -53,16 +55,16 @@ defineProps({
         </summary>
         <div class="agent-grid">
           <article class="agent-summary" :class="{ empty: !row.insight }">
-            <div class="summary-title" :style="{ color: SENDER_STYLE['Insight Engine'].color }">
-              <span>{{ SENDER_STYLE['Insight Engine'].icon }}</span>
+            <div class="summary-title" :style="{ color: SENDER_STYLE.insight.color }">
+              <span>{{ SENDER_STYLE.insight.icon }}</span>
               Insight 摘要
             </div>
             <p v-if="row.insight" class="msg-content">{{ row.insight.message_text }}</p>
             <p v-else class="summary-empty">尚未收到该维度摘要</p>
           </article>
           <article class="agent-summary" :class="{ empty: !row.media }">
-            <div class="summary-title" :style="{ color: SENDER_STYLE['Media Engine'].color }">
-              <span>{{ SENDER_STYLE['Media Engine'].icon }}</span>
+            <div class="summary-title" :style="{ color: SENDER_STYLE.media.color }">
+              <span>{{ SENDER_STYLE.media.icon }}</span>
               Media 摘要
             </div>
             <p v-if="row.media" class="msg-content">{{ row.media.message_text }}</p>
@@ -132,6 +134,27 @@ defineProps({
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+}
+
+.host-judgement summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.host-judgement summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle-label::after {
+  content: '收起';
+}
+
+.host-judgement:not([open]) .toggle-label::after {
+  content: '展开';
+}
+
+.host-content {
+  margin-top: 0.5rem;
 }
 
 .host-placeholder {
