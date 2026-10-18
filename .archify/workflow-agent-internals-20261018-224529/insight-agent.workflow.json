@@ -1,0 +1,159 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "InsightAgent 内部运行逻辑",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-agent-internals-20261018-224529/insight-agent.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/42pizzapirates/sentiment_analyse.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "21ba7a9641c164bef689f3314807a3c4ccafdd22"
+    }
+  },
+  "lanes": [
+    { "id": "input", "label": "输入与召回" },
+    { "id": "evidence", "label": "证据加工与结构" },
+    { "id": "loop", "label": "五维章节循环" },
+    { "id": "delivery", "label": "成稿与产物" },
+    { "id": "events", "label": "跨 Agent 事件" }
+  ],
+  "phases": [
+    { "id": "recall", "label": "召回", "fromCol": 0, "toCol": 2 },
+    { "id": "structure", "label": "聚类与规划", "fromCol": 3, "toCol": 3, "variant": "emphasis" },
+    { "id": "produce", "label": "逐章生成与交付", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "chapter_loop", "label": "cursor 逐章循环", "lane": "loop", "fromCol": 4, "toCol": 4, "variant": "emphasis" }
+  ],
+  "mainPath": [
+    "query",
+    "retrieve",
+    "rank",
+    "cluster_plan",
+    "allocate",
+    "summarize",
+    "format",
+    "save"
+  ],
+  "nodes": [
+    {
+      "id": "query",
+      "lane": "input",
+      "col": 0,
+      "type": "external",
+      "label": "研究主题",
+      "sublabel": "query",
+      "icon": "start",
+      "sources": [
+        { "path": "engines/insight_agent/agent.py", "line": 12, "end_line": 30, "label": "初始化 Agent 状态" }
+      ]
+    },
+    {
+      "id": "retrieve",
+      "lane": "input",
+      "col": 1,
+      "type": "backend",
+      "label": "私域召回",
+      "sublabel": "MySQL + 可选 Milvus",
+      "sources": [
+        { "path": "engines/insight_agent/nodes/retrieval_node.py", "line": 20, "end_line": 30, "label": "检索节点" },
+        { "path": "engines/insight_agent/tools/retrival_service.py", "line": 58, "end_line": 66, "label": "多路召回合并" }
+      ]
+    },
+    {
+      "id": "rank",
+      "lane": "evidence",
+      "col": 2,
+      "type": "backend",
+      "label": "证据重排",
+      "sublabel": "去重 · 加权 · 通道配额",
+      "tag": "最多 50 条",
+      "sources": [
+        { "path": "engines/insight_agent/nodes/rerank_node.py", "line": 32, "end_line": 41, "label": "重排节点" }
+      ]
+    },
+    {
+      "id": "cluster_plan",
+      "lane": "evidence",
+      "col": 3,
+      "type": "backend",
+      "label": "聚类并规划五维",
+      "sublabel": "语义/规则聚类 → 固定五维",
+      "sources": [
+        { "path": "engines/insight_agent/nodes/cluster_node.py", "line": 49, "end_line": 54, "label": "聚类路由" },
+        { "path": "engines/insight_agent/nodes/section_plan_node.py", "line": 30, "end_line": 44, "label": "规划五维章节" }
+      ]
+    },
+    {
+      "id": "allocate",
+      "lane": "evidence",
+      "col": 4,
+      "type": "backend",
+      "label": "分配证据",
+      "sublabel": "每维最多 20 条",
+      "sources": [
+        { "path": "engines/insight_agent/nodes/section_allocation_node.py", "line": 19, "end_line": 28, "label": "按维度分配证据" }
+      ]
+    },
+    {
+      "id": "summarize",
+      "lane": "loop",
+      "col": 4,
+      "type": "backend",
+      "label": "生成章节正文",
+      "sublabel": "有证据调用 LLM；空证据用占位",
+      "tag": "逐章执行",
+      "sources": [
+        { "path": "engines/insight_agent/nodes/section_summary_node.py", "line": 42, "end_line": 53, "label": "章节生成与进度" },
+        { "path": "engines/insight_agent/graph.py", "line": 17, "end_line": 20, "label": "章节循环条件" }
+      ]
+    },
+    {
+      "id": "section_event",
+      "lane": "events",
+      "col": 4,
+      "type": "messagebus",
+      "label": "section_ready",
+      "sublabel": "章节正文 + 证据元数据",
+      "sources": [
+        { "path": "engines/insight_agent/evidence_processor.py", "line": 130, "end_line": 155, "label": "发布章节事件" }
+      ]
+    },
+    {
+      "id": "format",
+      "lane": "delivery",
+      "col": 4,
+      "type": "backend",
+      "label": "整合完整报告",
+      "sublabel": "LLM 排版 / 程序化拼接兜底",
+      "sources": [
+        { "path": "engines/common/nodes/format_node.py", "line": 16, "end_line": 35, "label": "报告排版" }
+      ]
+    },
+    {
+      "id": "save",
+      "lane": "delivery",
+      "col": 5,
+      "type": "database",
+      "label": "写入 Insight 报告",
+      "sublabel": "INSIGHT_REPORT_DIR/*.md",
+      "icon": "success",
+      "sources": [
+        { "path": "engines/common/nodes/save_report_node.py", "line": 14, "end_line": 29, "label": "报告落盘" }
+      ]
+    }
+  ],
+  "edges": [
+    { "id": "query-retrieve", "from": "query", "to": "retrieve" },
+    { "id": "retrieve-rank", "from": "retrieve", "to": "rank" },
+    { "id": "rank-cluster-plan", "from": "rank", "to": "cluster_plan" },
+    { "id": "cluster-plan-allocate", "from": "cluster_plan", "to": "allocate" },
+    { "id": "allocate-summarize", "from": "allocate", "to": "summarize" },
+    { "id": "all-sections", "from": "summarize", "to": "format", "label": "五维完成" },
+    { "id": "publish-section", "from": "summarize", "to": "section_event", "label": "每章发布", "variant": "dashed", "role": "async" },
+    { "id": "format-save", "from": "format", "to": "save" }
+  ]
+}

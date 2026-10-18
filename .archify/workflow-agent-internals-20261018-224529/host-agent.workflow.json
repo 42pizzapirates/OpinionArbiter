@@ -1,0 +1,170 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HostAgent 内部运行逻辑",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-agent-internals-20261018-224529/host-agent.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/42pizzapirates/sentiment_analyse.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "21ba7a9641c164bef689f3314807a3c4ccafdd22"
+    }
+  },
+  "lanes": [
+    { "id": "events", "label": "事件消费" },
+    { "id": "triage", "label": "同维配对研判" },
+    { "id": "completion", "label": "完成判断" },
+    { "id": "output", "label": "Host 报告" },
+    { "id": "exceptions", "label": "跳过与等待", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "consume", "label": "串行消费", "fromCol": 0, "toCol": 2 },
+    { "id": "judge", "label": "配对、裁判与收口", "fromCol": 3, "toCol": 5, "variant": "emphasis" }
+  ],
+  "mainPath": [
+    "section_event",
+    "queue",
+    "parse",
+    "accumulate",
+    "find_pairs",
+    "judge",
+    "record",
+    "final_save"
+  ],
+  "nodes": [
+    {
+      "id": "section_event",
+      "lane": "events",
+      "col": 0,
+      "type": "messagebus",
+      "label": "section_ready",
+      "sublabel": "来自 Insight / Media",
+      "sources": [
+        { "path": "engines/common/eventing/event.py", "line": 39, "end_line": 50, "label": "章节就绪事件" }
+      ]
+    },
+    {
+      "id": "queue",
+      "lane": "events",
+      "col": 1,
+      "type": "messagebus",
+      "label": "串行事件队列",
+      "sublabel": "监听器逐条消费",
+      "sources": [
+        { "path": "engines/host_agent/listener.py", "line": 26, "end_line": 32, "label": "订阅事件" },
+        { "path": "engines/host_agent/listener.py", "line": 46, "end_line": 54, "label": "入队并消费" }
+      ]
+    },
+    {
+      "id": "parse",
+      "lane": "events",
+      "col": 2,
+      "type": "security",
+      "label": "校验事件",
+      "sublabel": "source ∈ Insight/Media，section_key ∈ 五维",
+      "icon": "decision",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 20, "end_line": 32, "label": "解析与校验" }
+      ]
+    },
+    {
+      "id": "accumulate",
+      "lane": "triage",
+      "col": 3,
+      "type": "backend",
+      "label": "写入 Session",
+      "sublabel": "同维同源去重；弱结果不覆盖强结果",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 35, "end_line": 44, "label": "章节累积" },
+        { "path": "engines/host_agent/pair_store.py", "line": 18, "end_line": 33, "label": "重复与质量判断" }
+      ]
+    },
+    {
+      "id": "find_pairs",
+      "lane": "triage",
+      "col": 4,
+      "type": "security",
+      "label": "双源同维到齐？",
+      "sublabel": "Insight + Media 均存在",
+      "icon": "decision",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 47, "end_line": 49, "label": "查找就绪配对" },
+        { "path": "engines/host_agent/pair_store.py", "line": 36, "end_line": 40, "label": "就绪条件" }
+      ]
+    },
+    {
+      "id": "judge",
+      "lane": "triage",
+      "col": 5,
+      "type": "backend",
+      "label": "LLM 章节研判",
+      "sublabel": "对照双源证据；携带近期裁判",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 67, "end_line": 79, "label": "研判首就绪配对" }
+      ]
+    },
+    {
+      "id": "record",
+      "lane": "completion",
+      "col": 5,
+      "type": "backend",
+      "label": "记录阶段裁判",
+      "sublabel": "标记该维完成；更新讨论 outbox",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 52, "end_line": 64, "label": "记录研判" }
+      ]
+    },
+    {
+      "id": "final_save",
+      "lane": "output",
+      "col": 5,
+      "type": "database",
+      "label": "生成并写入 Host 报告",
+      "sublabel": "五维完成后落盘 HOST_REPORT_DIR/*.md",
+      "icon": "success",
+      "sources": [
+        { "path": "engines/host_agent/nodes.py", "line": 82, "end_line": 95, "label": "最终裁判" },
+        { "path": "engines/host_agent/nodes.py", "line": 98, "end_line": 105, "label": "Host 报告落盘" }
+      ]
+    },
+    {
+      "id": "discard",
+      "lane": "exceptions",
+      "col": 3,
+      "type": "security",
+      "label": "丢弃非法事件",
+      "sublabel": "来源或维度不在五维范围",
+      "icon": "stop",
+      "sources": [
+        { "path": "engines/host_agent/graph.py", "line": 33, "end_line": 37, "label": "非法事件终止" }
+      ]
+    },
+    {
+      "id": "wait_next",
+      "lane": "exceptions",
+      "col": 4,
+      "type": "messagebus",
+      "label": "结束本轮，等待下一事件",
+      "sublabel": "监听器继续消费队列",
+      "icon": "waiting",
+      "sources": [
+        { "path": "engines/host_agent/graph.py", "line": 39, "end_line": 47, "label": "无配对或未完成时结束本轮" }
+      ]
+    }
+  ],
+  "edges": [
+    { "id": "event-queue", "from": "section_event", "to": "queue" },
+    { "id": "queue-parse", "from": "queue", "to": "parse" },
+    { "id": "parse-accumulate", "from": "parse", "to": "accumulate", "label": "合法" },
+    { "id": "parse-discard", "from": "parse", "to": "discard", "label": "非法", "variant": "security", "role": "error" },
+    { "id": "accumulate-find", "from": "accumulate", "to": "find_pairs" },
+    { "id": "find-judge", "from": "find_pairs", "to": "judge", "label": "有配对" },
+    { "id": "find-wait", "from": "find_pairs", "to": "wait_next", "label": "暂无", "variant": "dashed", "role": "branch" },
+    { "id": "judge-record", "from": "judge", "to": "record" },
+    { "id": "record-final", "from": "record", "to": "final_save", "label": "五维完成" },
+    { "id": "record-wait", "from": "record", "to": "wait_next", "label": "尚未完成", "variant": "dashed", "role": "branch" }
+  ]
+}

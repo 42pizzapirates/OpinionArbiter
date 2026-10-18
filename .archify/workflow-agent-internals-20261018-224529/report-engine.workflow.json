@@ -1,0 +1,134 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "ReportEngine 报告生成链",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-agent-internals-20261018-224529/report-engine.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/42pizzapirates/sentiment_analyse.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "21ba7a9641c164bef689f3314807a3c4ccafdd22"
+    }
+  },
+  "lanes": [
+    { "id": "control", "label": "任务控制" },
+    { "id": "input", "label": "输入装配" },
+    { "id": "engine", "label": "成稿引擎" },
+    { "id": "delivery", "label": "文件交付与状态" },
+    { "id": "exceptions", "label": "异常路径", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "create", "label": "创建任务", "fromCol": 0, "toCol": 1 },
+    { "id": "compose", "label": "装配与成稿", "fromCol": 2, "toCol": 4, "variant": "emphasis" },
+    { "id": "deliver", "label": "渲染、落盘与完成", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["request", "task", "ready", "load", "markdown", "render", "save_complete"],
+  "nodes": [
+    {
+      "id": "request",
+      "lane": "control",
+      "col": 0,
+      "type": "frontend",
+      "label": "POST /report/generate",
+      "sublabel": "携带报告主题",
+      "icon": "start",
+      "sources": [
+        { "path": "app/routers/rest/report.py", "line": 26, "end_line": 31, "label": "报告生成接口" }
+      ]
+    },
+    {
+      "id": "task",
+      "lane": "control",
+      "col": 1,
+      "type": "backend",
+      "label": "创建后台任务",
+      "sublabel": "单任务槽 + asyncio.create_task",
+      "sources": [
+        { "path": "app/services/report/report_service.py", "line": 37, "end_line": 47, "label": "启动报告任务" }
+      ]
+    },
+    {
+      "id": "ready",
+      "lane": "input",
+      "col": 2,
+      "type": "security",
+      "label": "三方输入就绪？",
+      "sublabel": "Insight / Media / Host 均有 MD",
+      "icon": "decision",
+      "sources": [
+        { "path": "app/services/report/input_loader.py", "line": 11, "end_line": 32, "label": "检查报告输入" }
+      ]
+    },
+    {
+      "id": "load",
+      "lane": "input",
+      "col": 3,
+      "type": "database",
+      "label": "加载最新 Markdown",
+      "sublabel": "各角色目录的最新文件",
+      "sources": [
+        { "path": "app/services/report/input_loader.py", "line": 34, "end_line": 49, "label": "读取三方报告" }
+      ]
+    },
+    {
+      "id": "markdown",
+      "lane": "engine",
+      "col": 4,
+      "type": "backend",
+      "label": "LLM 生成综合 Markdown",
+      "sublabel": "Host + Insight + Media 注入提示词",
+      "sources": [
+        { "path": "engines/report_engine/engine.py", "line": 59, "end_line": 73, "label": "综合报告成稿" }
+      ]
+    },
+    {
+      "id": "render",
+      "lane": "engine",
+      "col": 5,
+      "type": "backend",
+      "label": "Mistune 渲染 HTML",
+      "sublabel": "Markdown → HTML 页面",
+      "sources": [
+        { "path": "engines/report_engine/engine.py", "line": 42, "end_line": 57, "label": "生成与渲染" }
+      ]
+    },
+    {
+      "id": "save_complete",
+      "lane": "delivery",
+      "col": 5,
+      "type": "database",
+      "label": "落盘并标记 COMPLETED",
+      "sublabel": "OUTPUT_DIR/report_*.{md,html}",
+      "icon": "success",
+      "sources": [
+        { "path": "engines/report_engine/engine.py", "line": 75, "end_line": 102, "label": "报告落盘" },
+        { "path": "app/services/report/report_service.py", "line": 98, "end_line": 103, "label": "完成任务" }
+      ]
+    },
+    {
+      "id": "error",
+      "lane": "exceptions",
+      "col": 4,
+      "type": "security",
+      "label": "标记 ERROR",
+      "sublabel": "记录异常日志",
+      "icon": "failure",
+      "sources": [
+        { "path": "app/services/report/report_service.py", "line": 105, "end_line": 108, "label": "失败状态" }
+      ]
+    }
+  ],
+  "edges": [
+    { "id": "request-task", "from": "request", "to": "task" },
+    { "id": "task-ready", "from": "task", "to": "ready" },
+    { "id": "ready-load", "from": "ready", "to": "load", "label": "就绪" },
+    { "id": "ready-error", "from": "ready", "to": "error", "label": "未就绪", "variant": "security", "role": "error" },
+    { "id": "load-markdown", "from": "load", "to": "markdown" },
+    { "id": "markdown-render", "from": "markdown", "to": "render" },
+    { "id": "render-save", "from": "render", "to": "save_complete" },
+    { "id": "render-error", "from": "render", "to": "error", "label": "异常", "variant": "security", "role": "error" }
+  ]
+}

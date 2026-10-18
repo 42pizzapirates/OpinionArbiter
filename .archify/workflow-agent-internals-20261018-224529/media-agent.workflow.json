@@ -1,0 +1,137 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "MediaAgent 内部运行逻辑",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-agent-internals-20261018-224529/media-agent.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/42pizzapirates/sentiment_analyse.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "21ba7a9641c164bef689f3314807a3c4ccafdd22"
+    }
+  },
+  "lanes": [
+    { "id": "planning", "label": "章节规划" },
+    { "id": "search", "label": "公网检索" },
+    { "id": "loop", "label": "五维章节循环" },
+    { "id": "delivery", "label": "成稿与产物" },
+    { "id": "events", "label": "跨 Agent 事件" }
+  ],
+  "phases": [
+    { "id": "plan", "label": "规划", "fromCol": 0, "toCol": 1 },
+    { "id": "collect", "label": "检索与去重", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "produce", "label": "逐章生成与交付", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "chapter_loop", "label": "cursor 逐章循环", "lane": "loop", "fromCol": 4, "toCol": 4, "variant": "emphasis" }
+  ],
+  "mainPath": ["query", "plan", "search", "pool", "summarize", "format", "save"],
+  "nodes": [
+    {
+      "id": "query",
+      "lane": "planning",
+      "col": 0,
+      "type": "external",
+      "label": "研究主题",
+      "sublabel": "query",
+      "icon": "start",
+      "sources": [
+        { "path": "engines/media_agent/agent.py", "line": 12, "end_line": 27, "label": "初始化 Agent 状态" }
+      ]
+    },
+    {
+      "id": "plan",
+      "lane": "planning",
+      "col": 1,
+      "type": "backend",
+      "label": "规划五维检索",
+      "sublabel": "LLM 选择工具、关键词与研究目标",
+      "sources": [
+        { "path": "engines/media_agent/nodes/section_plan_node.py", "line": 30, "end_line": 38, "label": "章节规划" },
+        { "path": "engines/media_agent/nodes/section_plan_node.py", "line": 57, "end_line": 85, "label": "补齐固定五维" }
+      ]
+    },
+    {
+      "id": "search",
+      "lane": "search",
+      "col": 2,
+      "type": "cloud",
+      "label": "逐维 Web 检索",
+      "sublabel": "综合 / 溯源 / 实时",
+      "tag": "Tavily · Bocha · Anspire",
+      "sources": [
+        { "path": "engines/media_agent/nodes/section_search_node.py", "line": 15, "end_line": 35, "label": "章节检索" }
+      ]
+    },
+    {
+      "id": "pool",
+      "lane": "search",
+      "col": 3,
+      "type": "database",
+      "label": "去重证据池",
+      "sublabel": "按证据 id 跨章节合并",
+      "sources": [
+        { "path": "engines/media_agent/nodes/section_search_node.py", "line": 20, "end_line": 35, "label": "证据去重聚合" }
+      ]
+    },
+    {
+      "id": "summarize",
+      "lane": "loop",
+      "col": 4,
+      "type": "backend",
+      "label": "生成章节正文",
+      "sublabel": "每章取前 8 条；空证据标为数据缺口",
+      "tag": "逐章执行",
+      "sources": [
+        { "path": "engines/media_agent/nodes/section_summary_node.py", "line": 30, "end_line": 48, "label": "章节生成与进度" },
+        { "path": "engines/media_agent/graph.py", "line": 16, "end_line": 19, "label": "章节循环条件" }
+      ]
+    },
+    {
+      "id": "section_event",
+      "lane": "events",
+      "col": 3,
+      "type": "messagebus",
+      "label": "section_ready",
+      "sublabel": "章节正文 + 证据元数据",
+      "sources": [
+        { "path": "engines/media_agent/evidence_processor.py", "line": 41, "end_line": 70, "label": "发布章节事件" }
+      ]
+    },
+    {
+      "id": "format",
+      "lane": "delivery",
+      "col": 4,
+      "type": "backend",
+      "label": "整合完整报告",
+      "sublabel": "LLM 排版 / 程序化拼接兜底",
+      "sources": [
+        { "path": "engines/common/nodes/format_node.py", "line": 16, "end_line": 35, "label": "报告排版" }
+      ]
+    },
+    {
+      "id": "save",
+      "lane": "delivery",
+      "col": 5,
+      "type": "database",
+      "label": "写入 Media 报告",
+      "sublabel": "MEDIA_REPORT_DIR/*.md",
+      "icon": "success",
+      "sources": [
+        { "path": "engines/common/nodes/save_report_node.py", "line": 14, "end_line": 29, "label": "报告落盘" }
+      ]
+    }
+  ],
+  "edges": [
+    { "id": "query-plan", "from": "query", "to": "plan" },
+    { "id": "plan-search", "from": "plan", "to": "search" },
+    { "id": "search-pool", "from": "search", "to": "pool" },
+    { "id": "pool-summarize", "from": "pool", "to": "summarize" },
+    { "id": "all-sections", "from": "summarize", "to": "format", "label": "五维完成" },
+    { "id": "publish-section", "from": "summarize", "to": "section_event", "label": "每章发布", "variant": "dashed", "role": "async" },
+    { "id": "format-save", "from": "format", "to": "save" }
+  ]
+}

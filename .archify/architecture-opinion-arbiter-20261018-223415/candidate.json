@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "OpinionArbiter 系统架构",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-opinion-arbiter-20261018-223415/opinion-arbiter-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/42pizzapirates/sentiment_analyse.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "21ba7a9641c164bef689f3314807a3c4ccafdd22"
+    }
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "分析师 / 浏览器",
+      "sublabel": "提交舆情主题",
+      "pos": [40, 260],
+      "size": [120, 70]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Vue 3 控制台",
+      "sublabel": "研究 · 报告 · 主持人",
+      "pos": [200, 260],
+      "size": [150, 70],
+      "sources": [
+        { "path": "front/src/App.vue", "line": 16, "label": "SSE 连接" },
+        { "path": "front/src/App.vue", "line": 30, "end_line": 38, "label": "四个业务页签" }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "REST + SSE",
+      "pos": [420, 260],
+      "size": [140, 70],
+      "sources": [
+        { "path": "app/app.py", "line": 22, "end_line": 39, "label": "应用与路由注册" },
+        { "path": "app/routers/rest/research.py", "line": 14, "end_line": 29, "label": "研究接口" }
+      ]
+    },
+    {
+      "id": "research",
+      "type": "backend",
+      "label": "ResearchService",
+      "sublabel": "并发启动双源研究",
+      "pos": [650, 260],
+      "size": [170, 70],
+      "sources": [
+        { "path": "engines/orchestration/research.py", "line": 32, "end_line": 35, "label": "并发任务" },
+        { "path": "app/services/research/research_service.py", "line": 9, "end_line": 13, "label": "启动研究" }
+      ]
+    },
+    {
+      "id": "private_data",
+      "type": "database",
+      "label": "私域舆情库",
+      "sublabel": "MySQL · 可选 Milvus",
+      "pos": [860, 20],
+      "size": [180, 64],
+      "sources": [
+        { "path": "engines/insight_agent/tools/db_search/repository.py", "line": 23, "end_line": 66, "label": "三通道召回" },
+        { "path": "engines/insight_agent/tools/vector_search/repository.py", "line": 90, "end_line": 115, "label": "Milvus 混合检索" }
+      ]
+    },
+    {
+      "id": "insight",
+      "type": "backend",
+      "label": "InsightAgent",
+      "sublabel": "私域证据与章节",
+      "pos": [870, 125],
+      "size": [150, 74],
+      "tag": "五维研究",
+      "sources": [
+        { "path": "engines/insight_agent/graph.py", "line": 23, "end_line": 46, "label": "LangGraph 流程" },
+        { "path": "engines/insight_agent/tools/retrival_service.py", "line": 58, "end_line": 66, "label": "多路召回合并" }
+      ]
+    },
+    {
+      "id": "media",
+      "type": "backend",
+      "label": "MediaAgent",
+      "sublabel": "公网检索与章节",
+      "pos": [870, 395],
+      "size": [150, 74],
+      "tag": "五维研究",
+      "sources": [
+        { "path": "engines/media_agent/graph.py", "line": 22, "end_line": 39, "label": "LangGraph 流程" },
+        { "path": "engines/media_agent/nodes/section_search_node.py", "line": 15, "end_line": 35, "label": "章节检索聚合" }
+      ]
+    },
+    {
+      "id": "web_search",
+      "type": "cloud",
+      "label": "Web 搜索 API",
+      "sublabel": "Tavily · Bocha · Anspire",
+      "pos": [860, 520],
+      "size": [180, 64],
+      "sources": [
+        { "path": "engines/media_agent/web_search/factory.py", "line": 10, "end_line": 21, "label": "Provider 路由" },
+        { "path": "engines/media_agent/web_search/providers/tavily_client.py", "line": 22, "end_line": 32, "label": "三类检索" }
+      ]
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "HostAgent",
+      "sublabel": "同维配对研判",
+      "pos": [1100, 255],
+      "size": [140, 74],
+      "tag": "section_ready",
+      "sources": [
+        { "path": "engines/host_agent/listener.py", "line": 31, "label": "订阅章节事件" },
+        { "path": "engines/host_agent/listener.py", "line": 57, "label": "驱动研判图" },
+        { "path": "engines/host_agent/pair_store.py", "line": 54, "end_line": 71, "label": "同维配对" }
+      ]
+    },
+    {
+      "id": "report",
+      "type": "backend",
+      "label": "ReportEngine",
+      "sublabel": "聚合三方产物",
+      "pos": [1100, 430],
+      "size": [140, 74],
+      "sources": [
+        { "path": "engines/report_engine/engine.py", "line": 42, "end_line": 54, "label": "生成 Markdown 与 HTML" },
+        { "path": "app/services/report/input_loader.py", "line": 10, "end_line": 29, "label": "加载角色报告" }
+      ]
+    },
+    {
+      "id": "output",
+      "type": "database",
+      "label": "报告产物",
+      "sublabel": "Markdown · HTML",
+      "pos": [1090, 600],
+      "size": [150, 64],
+      "sources": [
+        { "path": "engines/common/io/report_io.py", "line": 5, "end_line": 13, "label": "报告落盘" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "任务编排与研判引擎",
+      "wraps": ["research", "insight", "media", "host", "report"]
+    }
+  ],
+  "connections": [
+    { "id": "user-to-web", "from": "user", "to": "web" },
+    { "id": "web-to-api", "from": "web", "to": "api", "label": "REST / SSE" },
+    { "id": "api-to-research", "from": "api", "to": "research", "label": "启动研究" },
+    { "id": "research-to-insight", "from": "research", "to": "insight" },
+    { "id": "research-to-media", "from": "research", "to": "media" },
+    { "id": "insight-to-private", "from": "insight", "to": "private_data" },
+    { "id": "media-to-search", "from": "media", "to": "web_search" },
+    { "id": "insight-to-host", "from": "insight", "to": "host", "label": "章节事件" },
+    { "id": "media-to-host", "from": "media", "to": "host", "label": "章节事件" },
+    { "id": "host-to-report", "from": "host", "to": "report", "label": "汇总研判" },
+    { "id": "report-to-output", "from": "report", "to": "output", "label": "落盘" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "双源输入",
+      "items": [
+        "Insight 读取私域内容与评论，可选 Milvus 语义召回",
+        "Media 按维度调用搜索 API，聚合外部网页证据"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "五维协同",
+      "items": [
+        "固定五维：背景、热度、情感、群体差异、深层影响",
+        "两个 Agent 完成同维章节后发布 section_ready"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "产物链",
+      "items": [
+        "HostAgent 完成五维研判并生成裁判报告",
+        "ReportEngine 读取三方 Markdown，输出 Markdown + HTML"
+      ]
+    }
+  ]
+}
