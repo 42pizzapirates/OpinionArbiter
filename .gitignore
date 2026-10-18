@@ -17,6 +17,7 @@ __pycache__/
 data/
 logs/
 *.log
+.archify/
 
 # ==================== 前端 ====================
 front/node_modules/
