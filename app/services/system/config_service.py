@@ -19,10 +19,7 @@ CONFIG_KEYS = [
 class ConfigService:
 
     def read_config_info(self) -> dict[str, Any]:
-        """
-        返回Settings实例对象的属性
-        :return:
-        """
+        """读取当前配置并返回可序列化的键值映射。"""
 
         current_config = get_settings()
 
@@ -35,10 +32,9 @@ class ConfigService:
         """将更新写入 .env 并触发全局热加载。"""
         env_file_path = str(PROJECT_ROOT / ".env")
 
-        # python-dotenv 的 set_key 自动处理读取、转义、写入和追加
         for key, value in update_info.items():
             set_key(env_file_path, key, str(value))
-            os.environ[key] = value  # 保险(两次同步 environ>.env)
+            # 同步进程内环境变量，确保 reload_settings 立即读取到新值
+            os.environ[key] = value
 
-        # 触发热更新
         return reload_settings()

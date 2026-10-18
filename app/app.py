@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
     lifecycle_service = get_lifecycle_service()
     try:
         lifecycle_service.register()
-        yield    # 处理请求
+        yield
     finally:
         lifecycle_service.shutdown()
 

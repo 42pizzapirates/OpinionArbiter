@@ -13,15 +13,11 @@ class AppServiceEventCoordinator:
     def register(self) -> None:
         """统一注册并启动所有关联的后台服务组件"""
 
-        # 1. 启动前端实时广播服务
         self.broadcaster_service.register_broadcaster()
-        # 2. 启动研判讨论缓冲服务
         self.host_service.register_discussion_buffer()
 
     def shutdown(self) -> None:
         """统一注销并停止所有关联的后台服务组件"""
 
-        # 1. 停止广播服务，断开事件订阅
         self.broadcaster_service.stop_broadcaster()
-        # 2. 停止讨论缓冲服务，释放监听
         self.host_service.stop_discussion_buffer()

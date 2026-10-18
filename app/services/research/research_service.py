@@ -7,7 +7,6 @@ from engines.common.io.report_io import latest_markdown_report
 class ResearchService:
 
     def start_research(self, query: str) -> dict[str, Any]:
-        # 1. 引擎编排层启动两个研究Agent执行的任务
         try:
             run_research(query)
             return {"started": True}

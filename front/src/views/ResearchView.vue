@@ -29,8 +29,8 @@ async function handleResearch() {
   results.value = null
   emit('research-started')
   try {
-    // 新查询前重置研判会话：stop 清空旧 Session（_done / pair_store），start 创建新 Session
-    // 必须先于 startResearch，确保 host 已订阅 SECTION_READY 事件再放 agent 发事件
+    // 新查询会重建研判会话：先 stop 清空 _done 与 pair_store，再 start 创建新会话。
+    // host 必须先订阅 SECTION_READY，再启动 research，避免章节事件丢失。
     await stopHost()
     await startHost()
     await startResearch(query.value.trim())

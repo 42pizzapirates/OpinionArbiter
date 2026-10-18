@@ -14,7 +14,7 @@ class DiscussionRecord:
 class DiscussionBuffer:
 
     def __init__(self) -> None:
-        self._discuss_records: list[DiscussionRecord] = []  # Redis足够(后端用的最多：MySQL)
+        self._discuss_records: list[DiscussionRecord] = []
 
     def append_message(self, data: dict[str, Any]) -> None:
         self._discuss_records.append(DiscussionRecord(

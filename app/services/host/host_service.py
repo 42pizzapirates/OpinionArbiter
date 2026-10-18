@@ -18,7 +18,6 @@ class HostService:
         subscribe(EventType.HOST_DISCUSSION_MESSAGE, self._on_discussion_message)
 
     def _on_discussion_message(self, _event_type: EventType, data: dict[str, Any]) -> None:
-        # 提取关键信息
         source = data.get("source")
         section_key = data.get("section_key")
         content = data.get("content")
